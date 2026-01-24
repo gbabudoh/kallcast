@@ -12,12 +12,24 @@ export interface IBooking extends Document {
   coachPayout: number;
   
   paymentIntentId: string;
-  paymentStatus: 'pending' | 'paid' | 'refunded' | 'failed';
+  paymentStatus: 'pending' | 'authorized' | 'captured' | 'paid' | 'refunded' | 'failed';
+  escrowStatus: 'authorized' | 'captured' | 'released' | 'refunded' | 'disputed';
   
   // Session
-  sessionStatus: 'scheduled' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
+  sessionStatus: 'scheduled' | 'in-progress' | 'pending_confirmation' | 'completed' | 'cancelled' | 'no-show' | 'disputed';
   videoRoomUrl: string;
   videoRoomId: string;
+  
+  // Session Confirmation (dual-party)
+  coachConfirmed: boolean | null;
+  clientConfirmed: boolean | null;
+  coachConfirmedAt?: Date;
+  clientConfirmedAt?: Date;
+  
+  // Actual timing
+  actualStartTime?: Date;
+  actualEndTime?: Date;
+  actualDuration?: number; // in minutes
   
   // Cancellation
   cancellationReason?: string;
@@ -28,6 +40,8 @@ export interface IBooking extends Document {
   // Review
   isReviewed: boolean;
   reviewId?: mongoose.Types.ObjectId;
+  rating?: number;
+  feedback?: string;
   
   scheduledFor: Date;
   completedAt?: Date;
@@ -81,15 +95,20 @@ const BookingSchema = new Schema<IBooking>({
   paymentStatus: {
     type: String,
     required: true,
-    enum: ['pending', 'paid', 'refunded', 'failed'],
+    enum: ['pending', 'authorized', 'captured', 'paid', 'refunded', 'failed'],
     default: 'pending',
+  },
+  escrowStatus: {
+    type: String,
+    enum: ['authorized', 'captured', 'released', 'refunded', 'disputed'],
+    default: 'authorized',
   },
   
   // Session
   sessionStatus: {
     type: String,
     required: true,
-    enum: ['scheduled', 'in-progress', 'completed', 'cancelled', 'no-show'],
+    enum: ['scheduled', 'in-progress', 'pending_confirmation', 'completed', 'cancelled', 'no-show', 'disputed'],
     default: 'scheduled',
   },
   videoRoomUrl: {
@@ -99,6 +118,34 @@ const BookingSchema = new Schema<IBooking>({
   videoRoomId: {
     type: String,
     required: true,
+  },
+  
+  // Session Confirmation
+  coachConfirmed: {
+    type: Boolean,
+    default: null,
+  },
+  clientConfirmed: {
+    type: Boolean,
+    default: null,
+  },
+  coachConfirmedAt: {
+    type: Date,
+  },
+  clientConfirmedAt: {
+    type: Date,
+  },
+  
+  // Actual timing
+  actualStartTime: {
+    type: Date,
+  },
+  actualEndTime: {
+    type: Date,
+  },
+  actualDuration: {
+    type: Number,
+    min: 0,
   },
   
   // Cancellation
@@ -125,6 +172,14 @@ const BookingSchema = new Schema<IBooking>({
   reviewId: {
     type: Schema.Types.ObjectId,
     ref: 'Review',
+  },
+  rating: {
+    type: Number,
+    min: 1,
+    max: 5,
+  },
+  feedback: {
+    type: String,
   },
   
   scheduledFor: {

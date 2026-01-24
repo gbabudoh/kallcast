@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useRouter } from 'next/navigation';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Star, Clock, Users, MapPin } from 'lucide-react';
+import { Star, MapPin, CheckCircle2 } from 'lucide-react';
 import { CoachProfile } from '@/types/coach';
 
 interface CoachCardProps {
@@ -14,100 +14,96 @@ interface CoachCardProps {
 }
 
 export default function CoachCard({ coach }: CoachCardProps) {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleBookSession = () => {
+  const handleBookSession = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     setIsLoading(true);
-    // This would typically open a booking modal or navigate to booking page
-    console.log('Book session for coach:', coach._id);
-    setIsLoading(false);
+    router.push(`/coach/${coach._id}#booking-section`);
   };
 
   return (
-    <Card className="hover:shadow-lg transition-shadow duration-200">
-      <CardHeader className="pb-4">
-        <div className="flex items-start space-x-4">
-          <Avatar className="h-16 w-16">
-            <AvatarImage src={coach.profileImage} alt={`${coach.firstName} ${coach.lastName}`} />
-            <AvatarFallback className="text-lg">
-              {coach.firstName[0]}{coach.lastName[0]}
-            </AvatarFallback>
-          </Avatar>
-          
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-semibold truncate">
-                {coach.firstName} {coach.lastName}
-              </CardTitle>
-              {coach.isVerified && (
-                <Badge variant="secondary" className="bg-green-100 text-green-800">
-                  Verified
-                </Badge>
-              )}
-            </div>
-            
-            <div className="flex items-center space-x-4 mt-2">
-              <div className="flex items-center space-x-1">
-                <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                <span className="text-sm font-medium">{coach.averageRating}</span>
-                <span className="text-sm text-gray-500">({coach.totalSessions} sessions)</span>
-              </div>
+    <Link href={`/coach/${coach._id}`}>
+      <Card className="group hover:shadow-2xl transition-all duration-300 border-slate-100 overflow-hidden bg-white flex flex-col h-full rounded-[1.5rem] shadow-sm">
+        <CardContent className="p-0 flex flex-col h-full">
+          {/* Main Focus: Session Title & Gains */}
+          <div className="relative p-5 bg-slate-900 text-white min-h-[150px] flex flex-col justify-center overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-transparent opacity-50 group-hover:opacity-80 transition-opacity"></div>
+            <div className="relative z-10">
+              <h2 className="text-xl font-black leading-tight mb-3 group-hover:text-blue-300 transition-colors">
+                {coach.sessionTitle || `1-on-1 Coaching with ${coach.firstName}`}
+              </h2>
               
-              <div className="flex items-center space-x-1">
-                <Clock className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">${coach.hourlyRate}/hr</span>
+              <div className="space-y-1.5">
+                {(coach.sessionGains || ['Master core concepts', 'Get personalized feedback', 'Accelerate your progress']).slice(0, 2).map((gain, i) => (
+                  <div key={i} className="flex items-center text-slate-300 text-xs font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-2 text-green-400 shrink-0" />
+                    <span className="truncate">{gain}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-        </div>
-      </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Expertise Tags */}
-        <div className="flex flex-wrap gap-1">
-          {coach.expertise.slice(0, 3).map((skill) => (
-            <Badge key={skill} variant="outline" className="text-xs">
-              {skill}
-            </Badge>
-          ))}
-          {coach.expertise.length > 3 && (
-            <Badge variant="outline" className="text-xs">
-              +{coach.expertise.length - 3} more
-            </Badge>
-          )}
-        </div>
+          <div className="p-5 flex-1 flex flex-col">
+            {/* Coach Identity (Secondary) */}
+            <div className="flex items-center space-x-3 mb-5">
+              <div className="relative">
+                <Avatar className="h-9 w-9 ring-2 ring-slate-100">
+                  <AvatarImage src={coach.profileImage} alt={`${coach.firstName} ${coach.lastName}`} className="object-cover" />
+                  <AvatarFallback className="bg-slate-200 text-slate-600 font-bold text-xs">
+                    {coach.firstName[0]}{coach.lastName[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[13px] font-black text-slate-900 truncate">
+                  {coach.firstName} {coach.lastName}
+                </div>
+                <div className="text-[9px] text-slate-500 font-black uppercase tracking-wider truncate">
+                  {coach.title} @ <span className="text-blue-600">{coach.company}</span>
+                </div>
+              </div>
+            </div>
 
-        {/* Bio Preview */}
-        {coach.bio && (
-          <p className="text-sm text-gray-600 line-clamp-2">
-            {coach.bio}
-          </p>
-        )}
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="flex items-center text-slate-500 text-[11px] font-bold">
+                <MapPin className="w-3 h-3 mr-1 text-slate-400" />
+                <span className="truncate">{coach.location || 'Remote'}</span>
+              </div>
+              <div className="flex items-center justify-end text-[11px] font-bold text-slate-900">
+                <Star className="h-3 w-3 text-amber-500 fill-amber-500 mr-1" />
+                <span>{coach.averageRating?.toFixed(1) || '5.0'}</span>
+                <span className="text-slate-400 font-medium ml-1">({coach.totalSessions || 0})</span>
+              </div>
+            </div>
 
-        {/* Experience */}
-        <div className="flex items-center space-x-4 text-sm text-gray-500">
-          <div className="flex items-center space-x-1">
-            <Users className="h-4 w-4" />
-            <span>{coach.yearsExperience} years experience</span>
+            <div className="mt-auto pt-4 border-t border-slate-50 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[9px] text-slate-400 uppercase tracking-widest font-black mb-0.5">Rate</div>
+                  <div className="text-lg font-black text-slate-900">${coach.hourlyRate}<span className="text-[10px] text-slate-400 font-bold">/hr</span></div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[9px] text-slate-400 uppercase tracking-widest font-black mb-0.5">Availability</div>
+                  <div className="text-[11px] font-black text-green-600">Today 3:00 PM</div>
+                </div>
+              </div>
+
+              <Button 
+                onClick={handleBookSession}
+                disabled={isLoading}
+                className="w-full bg-slate-900 hover:bg-black text-white font-black h-10 rounded-xl transition-all shadow-sm hover:shadow-md cursor-pointer text-xs"
+              >
+                {isLoading ? 'Wait...' : 'Book Session'}
+              </Button>
+            </div>
           </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex space-x-2 pt-2">
-          <Link href={`/coach/${coach._id}`} className="flex-1">
-            <Button variant="outline" className="w-full">
-              View Profile
-            </Button>
-          </Link>
-          <Button 
-            onClick={handleBookSession}
-            disabled={isLoading}
-            className="flex-1"
-          >
-            {isLoading ? 'Loading...' : 'Book Session'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }

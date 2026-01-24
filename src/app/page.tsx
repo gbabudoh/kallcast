@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/ui/logo";
+import { ROUTES } from "@/constants/routes";
 import { 
   Video, 
   Users, 
@@ -14,24 +14,29 @@ import {
   CheckCircle,
   Play,
   Sparkles,
-  TrendingUp,
-  Award
+  TrendingUp
 } from "lucide-react";
 
+// Note: Logged-in users are redirected to dashboard by middleware
+// So this page only shows for non-authenticated users
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 relative overflow-hidden">
-      {/* Animated background elements */}
+      {/* Animated background elements - refined for subtler feel */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-purple-600/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-indigo-400/20 to-cyan-600/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-purple-400/10 to-pink-600/10 rounded-full blur-3xl animate-pulse delay-500"></div>
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/10 to-purple-600/10 rounded-full blur-[120px] animate-fade-in"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-blue-500/5 to-transparent rounded-full blur-[100px]"></div>
       </div>
       {/* Navigation */}
       <nav className="bg-white/90 backdrop-blur-xl border-b border-white/20 sticky top-0 z-50 shadow-lg shadow-black/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-18">
             <Logo size="md" variant="default" />
+            <div className="hidden md:flex items-center space-x-8">
+              <Link href={ROUTES.EXPLAIN} className="text-gray-600 font-bold hover:text-blue-600 transition-colors">Explain</Link>
+              <Link href={ROUTES.PRICING} className="text-gray-600 font-bold hover:text-blue-600 transition-colors">Pricing</Link>
+              <Link href={ROUTES.RESOURCES} className="text-gray-600 font-bold hover:text-blue-600 transition-colors">Resources</Link>
+            </div>
             <div className="flex items-center space-x-4">
               <Link href="/login">
                 <Button variant="ghost" className="text-gray-700 hover:text-gray-900 hover:bg-white/60 transition-all duration-300 cursor-pointer">
@@ -95,15 +100,20 @@ export default function Home() {
                 </Link>
               </div>
               
-              {/* Live indicators */}
-              <div className="flex items-center space-x-6 text-sm text-gray-600">
-                <div className="flex items-center">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></div>
-                  <span>127 live sessions now</span>
+              {/* Trust Indicators / Social Proof Bar */}
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-4 pt-8 border-t border-gray-200/60">
+                <p className="text-sm font-semibold text-gray-400 uppercase tracking-widest w-full mb-2">Trusted by industry leaders</p>
+                <div className="flex items-center space-x-2 grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all cursor-default">
+                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white text-[10px] font-bold">EDU</div>
+                  <span className="text-gray-600 font-semibold">GlobalEdu</span>
                 </div>
-                <div className="flex items-center">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse mr-2"></div>
-                  <span>2.3K coaches online</span>
+                <div className="flex items-center space-x-2 grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all cursor-default">
+                  <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center text-white text-[10px] font-bold">TEC</div>
+                  <span className="text-gray-600 font-semibold">TechFlow</span>
+                </div>
+                <div className="flex items-center space-x-2 grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all cursor-default">
+                  <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-[10px] font-bold">SKL</div>
+                  <span className="text-gray-600 font-semibold">SkillSync</span>
                 </div>
               </div>
             </div>
@@ -112,73 +122,77 @@ export default function Home() {
             <div className="relative">
               {/* Main video container */}
               <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 rounded-3xl p-8 shadow-2xl">
-                {/* Video screen */}
-                <div className="bg-black rounded-2xl overflow-hidden relative">
+                {/* Video screen with glass overlay */}
+                <div className="bg-black/40 backdrop-blur-md rounded-2xl overflow-hidden relative border border-white/10">
                   {/* Video header */}
-                  <div className="bg-gray-800 px-4 py-3 flex items-center justify-between">
+                  <div className="bg-white/5 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-white/10">
                     <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <div className="w-2.5 h-2.5 bg-red-400/80 rounded-full"></div>
+                      <div className="w-2.5 h-2.5 bg-yellow-400/80 rounded-full"></div>
+                      <div className="w-2.5 h-2.5 bg-green-400/80 rounded-full"></div>
                     </div>
-                    <div className="flex items-center space-x-2 text-white text-sm">
-                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                      <span>LIVE</span>
+                    <div className="flex items-center space-x-3 text-white/90 text-xs font-medium bg-red-500/20 px-3 py-1 rounded-full border border-red-500/30">
+                      <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                      <span className="tracking-wider">LIVE RECORDING</span>
                     </div>
                   </div>
                   
                   {/* Video content */}
-                  <div className="aspect-video bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 relative overflow-hidden">
-                    {/* Animated video elements */}
+                  <div className="aspect-video bg-[#0B0F19] relative overflow-hidden">
+                    {/* Perspective Grid Background */}
+                    <div className="absolute inset-0 opacity-20 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+                    
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="grid grid-cols-2 gap-4 w-full h-full p-6">
-                        {/* Coach video */}
-                        <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 rounded-xl border border-white/10 relative overflow-hidden">
-                          <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded">Coach</div>
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-                          <div className="absolute bottom-2 left-2 text-white text-sm font-medium">Sarah Johnson</div>
-                          {/* Animated speaking indicator */}
-                          <div className="absolute bottom-2 right-2 flex space-x-1">
-                            <div className="w-1 h-4 bg-green-400 rounded animate-pulse"></div>
-                            <div className="w-1 h-6 bg-green-400 rounded animate-pulse delay-100"></div>
-                            <div className="w-1 h-3 bg-green-400 rounded animate-pulse delay-200"></div>
+                      <div className="grid grid-cols-12 gap-4 w-full h-full p-4">
+                        {/* Main Spotlight - Coach */}
+                        <div className="col-span-8 bg-gradient-to-br from-blue-900/40 to-indigo-900/40 rounded-xl border border-white/10 relative overflow-hidden group">
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                          <div className="absolute top-3 left-3 flex items-center space-x-2">
+                             <div className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded shadow-lg uppercase font-bold tracking-tighter">Instructor</div>
+                             <div className="bg-black/40 backdrop-blur-sm text-white/70 text-[10px] px-2 py-0.5 rounded">4K 60FPS</div>
                           </div>
+                          
+                          <div className="absolute bottom-3 left-3">
+                            <div className="text-white text-sm font-bold tracking-tight">Dr. Sarah Johnson</div>
+                            <div className="text-blue-300/80 text-[10px]">Product Design Specialist</div>
+                          </div>
+                          
+                          {/* Shimmer Effect */}
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-shimmer transition-all"></div>
                         </div>
                         
-                        {/* Student video */}
-                        <div className="bg-gradient-to-br from-indigo-600/20 to-blue-600/20 rounded-xl border border-white/10 relative overflow-hidden">
-                          <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">Student</div>
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-                          <div className="absolute bottom-2 left-2 text-white text-sm font-medium">Alex Chen</div>
-                        </div>
-                        
-                        {/* Screen share area */}
-                        <div className="col-span-2 bg-white/10 rounded-xl border border-white/10 relative overflow-hidden">
-                          <div className="absolute top-2 left-2 bg-purple-500 text-white text-xs px-2 py-1 rounded flex items-center">
-                            <Video className="w-3 h-3 mr-1" />
-                            Screen Share
-                          </div>
-                          {/* Animated content */}
-                          <div className="p-4 h-full flex items-center justify-center">
-                            <div className="text-center text-white/80">
-                              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full mx-auto mb-2 animate-pulse"></div>
-                              <div className="text-sm">Interactive Whiteboard</div>
+                        {/* Sidebar - Participant & Chat */}
+                        <div className="col-span-4 flex flex-col gap-3">
+                          <div className="flex-1 bg-white/5 rounded-xl border border-white/10 p-3 space-y-2 overflow-hidden">
+                            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Live Chat</div>
+                            <div className="space-y-2">
+                              <div className="flex items-start space-x-2">
+                                <div className="w-4 h-4 rounded-full bg-purple-500 flex-shrink-0"></div>
+                                <div className="bg-white/5 p-1.5 rounded text-[9px] text-gray-300">Great point on the UX!</div>
+                              </div>
+                              <div className="flex items-start space-x-2">
+                                <div className="w-4 h-4 rounded-full bg-blue-500 flex-shrink-0"></div>
+                                <div className="bg-white/5 p-1.5 rounded text-[9px] text-gray-300">How do we handle edge cases?</div>
+                              </div>
                             </div>
+                          </div>
+                          <div className="h-24 bg-gradient-to-br from-purple-900/40 to-pink-900/40 rounded-xl border border-white/10 relative">
+                             <div className="absolute top-2 left-2 bg-purple-500 text-white text-[8px] px-1.5 py-0.5 rounded">You</div>
                           </div>
                         </div>
                       </div>
                     </div>
                     
-                    {/* Video controls */}
-                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-4 bg-black/50 backdrop-blur-sm rounded-full px-6 py-2">
-                      <button className="text-white hover:text-blue-400 transition-colors">
-                        <Video className="w-5 h-5" />
+                    {/* Refined Video controls */}
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-6 bg-black/60 backdrop-blur-md rounded-full px-8 py-2.5 border border-white/10 shadow-2xl">
+                      <button className="text-white/60 hover:text-blue-400 transition-colors">
+                        <Video className="w-4 h-4" />
                       </button>
-                      <button className="text-white hover:text-blue-400 transition-colors">
-                        <Users className="w-5 h-5" />
+                      <button className="text-white/60 hover:text-blue-400 transition-colors">
+                        <Users className="w-4 h-4" />
                       </button>
-                      <button className="text-red-500 hover:text-red-400 transition-colors">
-                        <div className="w-5 h-5 bg-red-500 rounded"></div>
+                      <button className="w-8 h-8 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-all shadow-lg shadow-red-500/20">
+                        <div className="w-2.5 h-2.5 bg-white rounded-sm"></div>
                       </button>
                     </div>
                   </div>
@@ -268,53 +282,56 @@ export default function Home() {
 
           {/* Interactive Video Demo */}
           <div className="mb-20">
-            <div className="bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 rounded-3xl p-8 relative overflow-hidden">
-              {/* Floating particles */}
-              <div className="absolute inset-0">
-                <div className="absolute top-10 left-10 w-2 h-2 bg-blue-400 rounded-full animate-ping"></div>
-                <div className="absolute top-20 right-20 w-1 h-1 bg-purple-400 rounded-full animate-ping delay-500"></div>
-                <div className="absolute bottom-20 left-20 w-1.5 h-1.5 bg-indigo-400 rounded-full animate-ping delay-1000"></div>
-              </div>
+            <div className="bg-[#0B0F19] rounded-[2rem] p-4 lg:p-12 relative overflow-hidden border border-white/5 shadow-2xl">
+              {/* Background ambient glow */}
+              <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px]"></div>
+              <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-purple-600/10 rounded-full blur-[100px]"></div>
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center relative z-10">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
                 {/* Left - Video Interface */}
-                <div className="space-y-6">
-                  <h3 className="text-2xl font-bold text-white mb-4">Live Interactive Sessions</h3>
+                <div className="space-y-8">
+                  <div className="space-y-2">
+                    <h3 className="text-3xl font-bold text-white tracking-tight">Immersive Live Sessions</h3>
+                    <p className="text-gray-400 text-lg">Experience coaching that feels as close to in-person as technology allows.</p>
+                  </div>
                   
                   {/* Video call interface */}
-                  <div className="bg-black/30 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
-                    <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-6 border border-white/10 shadow-2xl relative group">
+                    <div className="grid grid-cols-2 gap-4 mb-6">
                       {/* Coach video */}
-                      <div className="aspect-video bg-gradient-to-br from-blue-600/30 to-purple-600/30 rounded-lg relative overflow-hidden border border-white/20">
-                        <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded flex items-center">
-                          <div className="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></div>
-                          Coach
+                      <div className="aspect-square lg:aspect-video bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-2xl relative overflow-hidden border border-white/10 group-hover:border-blue-500/30 transition-colors">
+                        <div className="absolute top-3 left-3 flex items-center bg-blue-600/90 text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-wider shadow-lg">
+                          <div className="w-1.5 h-1.5 bg-white rounded-full mr-1.5 animate-pulse"></div>
+                          Instructor
                         </div>
-                        <div className="absolute bottom-2 right-2 flex space-x-1">
-                          <div className="w-1 h-3 bg-green-400 rounded animate-pulse"></div>
-                          <div className="w-1 h-5 bg-green-400 rounded animate-pulse delay-100"></div>
-                          <div className="w-1 h-2 bg-green-400 rounded animate-pulse delay-200"></div>
+                        <div className="absolute bottom-3 right-3 flex items-end space-x-1 h-6">
+                          <div className="w-1 h-3 bg-blue-400 rounded-full animate-pulse"></div>
+                          <div className="w-1 h-5 bg-blue-400 rounded-full animate-pulse delay-75"></div>
+                          <div className="w-1 h-2 bg-blue-400 rounded-full animate-pulse delay-150"></div>
                         </div>
                       </div>
                       
                       {/* Student video */}
-                      <div className="aspect-video bg-gradient-to-br from-indigo-600/30 to-blue-600/30 rounded-lg relative overflow-hidden border border-white/20">
-                        <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">You</div>
+                      <div className="aspect-square lg:aspect-video bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl relative overflow-hidden border border-white/10">
+                        <div className="absolute top-3 left-3 bg-white/10 backdrop-blur-md text-white/70 text-[10px] px-2 py-1 rounded-md font-bold">YOU</div>
                       </div>
                     </div>
                     
                     {/* Controls */}
-                    <div className="flex items-center justify-center space-x-4 bg-black/50 rounded-full px-6 py-3">
-                      <button className="w-10 h-10 bg-gray-700 hover:bg-blue-600 rounded-full flex items-center justify-center transition-colors">
-                        <Video className="w-5 h-5 text-white" />
+                    <div className="flex items-center justify-center space-x-6">
+                      <button className="w-12 h-12 bg-white/5 hover:bg-white/10 rounded-2xl flex items-center justify-center transition-all border border-white/10">
+                        <Video className="w-5 h-5 text-white/70" />
                       </button>
-                      <button className="w-10 h-10 bg-gray-700 hover:bg-blue-600 rounded-full flex items-center justify-center transition-colors">
-                        <Users className="w-5 h-5 text-white" />
+                      <button className="w-12 h-12 bg-white/5 hover:bg-white/10 rounded-2xl flex items-center justify-center transition-all border border-white/10 font-bold text-xs text-white/70">
+                        CC
                       </button>
-                      <button className="w-12 h-12 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center transition-colors">
+                      <button className="w-14 h-14 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-all shadow-lg shadow-red-500/20">
                         <div className="w-4 h-4 bg-white rounded-sm"></div>
                       </button>
                     </div>
+
+                    {/* Shimmer on hover */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-shimmer transition-all"></div>
                   </div>
                 </div>
                 
@@ -372,14 +389,14 @@ export default function Home() {
                 title: "HD Video Streaming",
                 description: "Adaptive 4K streaming with low latency for seamless learning",
                 gradient: "from-blue-500 to-blue-600",
-                bgGradient: "from-white to-blue-50/30 hover:from-blue-50/50 hover:to-purple-50/30"
+                bgGradient: "from-white to-blue-50/30 hover:from-blue-50/50 hover:to-indigo-50/30"
               },
               {
                 icon: Users,
                 title: "Interactive Breakouts",
                 description: "Create instant breakout rooms for group activities and discussions",
-                gradient: "from-emerald-500 to-teal-600",
-                bgGradient: "from-white to-emerald-50/30 hover:from-emerald-50/50 hover:to-teal-50/30"
+                gradient: "from-indigo-500 to-indigo-600",
+                bgGradient: "from-white to-indigo-50/30 hover:from-indigo-50/50 hover:to-blue-50/30"
               },
               {
                 icon: Star,
@@ -392,22 +409,22 @@ export default function Home() {
                 icon: Clock,
                 title: "Session Recording",
                 description: "Automatic cloud recording with searchable transcripts",
-                gradient: "from-orange-500 to-amber-600",
-                bgGradient: "from-white to-orange-50/30 hover:from-orange-50/50 hover:to-amber-50/30"
+                gradient: "from-blue-600 to-indigo-700",
+                bgGradient: "from-white to-blue-50/30 hover:from-blue-50/50 hover:to-purple-50/30"
               },
               {
                 icon: Shield,
                 title: "Virtual Whiteboard",
                 description: "Collaborative drawing tools with real-time synchronization",
-                gradient: "from-red-500 to-rose-600",
-                bgGradient: "from-white to-red-50/30 hover:from-red-50/50 hover:to-rose-50/30"
+                gradient: "from-indigo-600 to-purple-600",
+                bgGradient: "from-white to-indigo-50/30 hover:from-indigo-50/50 hover:to-purple-50/30"
               },
               {
                 icon: Zap,
                 title: "One-Click Join",
                 description: "No downloads required - join directly from your browser",
-                gradient: "from-yellow-500 to-amber-600",
-                bgGradient: "from-white to-yellow-50/30 hover:from-yellow-50/50 hover:to-amber-50/30"
+                gradient: "from-blue-400 to-blue-500",
+                bgGradient: "from-white to-blue-50/30 hover:from-blue-50/50 hover:to-indigo-50/30"
               }
             ].map((feature, index) => (
               <Card key={index} className={`group hover:shadow-2xl transition-all duration-500 border-0 bg-gradient-to-br ${feature.bgGradient} transform hover:-translate-y-2`}>
@@ -454,58 +471,67 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
               {
-                name: "Sarah Johnson",
-                role: "Product Manager",
-                company: "Tech Startup",
+                name: "Dr. Elena Vance",
+                role: "Senior Product Architect",
+                company: "Design Systems Inc.",
                 rating: 5,
-                text: "The live video sessions transformed my leadership skills. Having real-time feedback during role-playing exercises was game-changing.",
-                avatar: "SJ",
-                gradient: "from-blue-500 to-purple-600"
+                text: "The high-fidelity video throughput on Kallcast is unmatched. It's the first platform where I can actually see the subtle nuances of interface interactions during my sessions.",
+                avatar: "EV",
+                gradient: "from-blue-600 to-indigo-600",
+                verified: true
               },
               {
-                name: "Michael Chen",
-                role: "Software Engineer",
-                company: "Fortune 500",
+                name: "Marcus Thorne",
+                role: "Executive Leadership Coach",
+                company: "Fortune 500 Mentor",
                 rating: 5,
-                text: "Screen sharing during coding sessions helped me debug complex problems faster than I ever imagined possible.",
-                avatar: "MC",
-                gradient: "from-purple-500 to-indigo-600"
+                text: "The interactive collaboration tools—especially the breakout rooms and HD recording—have completely revolutionized how I deliver executive training programs.",
+                avatar: "MT",
+                gradient: "from-indigo-600 to-purple-600",
+                verified: true
               },
               {
-                name: "Emily Rodriguez",
-                role: "Marketing Director",
-                company: "Agency",
+                name: "Sophia Rodriguez",
+                role: "Creative Director",
+                company: "Pixel Perfect Agency",
                 rating: 5,
-                text: "The interactive whiteboard feature made strategy sessions incredibly engaging. It's like having a coach right next to you.",
-                avatar: "ER",
-                gradient: "from-indigo-500 to-blue-600"
+                text: "Being able to use the 4K whiteboarding feature in real-time has made our creative strategy sessions more effective than any in-person meeting we've had.",
+                avatar: "SR",
+                gradient: "from-purple-600 to-blue-600",
+                verified: true
               }
             ].map((testimonial, index) => (
               <div key={index} className="group">
-                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 relative overflow-hidden">
-                  {/* Video play overlay */}
-                  <div className="absolute top-4 right-4 w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity cursor-pointer">
-                    <Play className="w-5 h-5 text-white ml-0.5" />
+                <Card className="bg-white/40 backdrop-blur-md border border-white/20 shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 relative overflow-hidden group">
+                  {/* Premium Badge */}
+                  <div className="absolute top-0 right-0 p-2">
+                    <div className="bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded-full border border-blue-100 uppercase tracking-tighter">Verified Session</div>
                   </div>
                   
                   <CardHeader className="pb-4">
                     <div className="flex items-center space-x-4">
-                      <div className={`w-12 h-12 bg-gradient-to-r ${testimonial.gradient} rounded-full flex items-center justify-center text-white font-bold shadow-lg`}>
+                      <div className={`w-14 h-14 bg-gradient-to-br ${testimonial.gradient} rounded-2xl flex items-center justify-center text-white font-bold shadow-lg transform group-hover:rotate-3 transition-transform`}>
                         {testimonial.avatar}
                       </div>
                       <div>
-                        <h4 className="font-semibold text-gray-900">{testimonial.name}</h4>
-                        <p className="text-sm text-gray-600">{testimonial.role} at {testimonial.company}</p>
+                        <h4 className="font-bold text-gray-900 flex items-center">
+                          {testimonial.name}
+                          {testimonial.verified && (
+                            <CheckCircle className="w-3.5 h-3.5 text-blue-500 ml-1.5" />
+                          )}
+                        </h4>
+                        <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{testimonial.role}</p>
+                        <p className="text-[10px] text-blue-600 font-semibold">{testimonial.company}</p>
                       </div>
                     </div>
-                    <div className="flex items-center mt-3">
+                    <div className="flex items-center mt-3 space-x-0.5">
                       {[...Array(testimonial.rating)].map((_, i) => (
-                        <Star key={i} className="w-4 h-4 text-yellow-400 fill-current" />
+                        <Star key={i} className="w-3 h-3 text-amber-400 fill-current" />
                       ))}
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-gray-700 leading-relaxed italic">"{testimonial.text}"</p>
+                    <p className="text-gray-700 leading-relaxed italic">&quot;{testimonial.text}&quot;</p>
                     
                     {/* Video session indicator */}
                     <div className="mt-4 flex items-center text-sm text-gray-500">
@@ -782,7 +808,12 @@ export default function Home() {
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             <div className="md:col-span-1">
-              <Logo size="md" variant="white" href="/" className="mb-6" />
+              <Logo 
+                size="md" 
+                variant="white" 
+                href="/" 
+                className="mb-6" 
+              />
               <p className="text-gray-400 leading-relaxed mb-6">
                 Connecting learners with expert coaches for transformative live learning experiences.
               </p>
@@ -802,20 +833,20 @@ export default function Home() {
             <div>
               <h4 className="font-bold mb-6 text-lg text-white">For Learners</h4>
               <ul className="space-y-3">
-                <li><Link href="/explore" className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block">Browse Coaches</Link></li>
-                <li><Link href="/register" className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block">Sign Up</Link></li>
-                <li><Link href="/login" className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block">Sign In</Link></li>
-                <li><Link href="/pricing" className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block">Pricing</Link></li>
+                <li><Link href={ROUTES.AUTH.REGISTER} className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block cursor-pointer">Browse Coaches</Link></li>
+                <li><Link href={ROUTES.AUTH.REGISTER} className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block cursor-pointer">Sign Up</Link></li>
+                <li><Link href={ROUTES.AUTH.LOGIN} className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block cursor-pointer">Sign In</Link></li>
+                <li><Link href={ROUTES.PRICING} className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block cursor-pointer">Pricing</Link></li>
               </ul>
             </div>
             
             <div>
               <h4 className="font-bold mb-6 text-lg text-white">For Coaches</h4>
               <ul className="space-y-3">
-                <li><Link href="/register-coach" className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block">Become a Coach</Link></li>
-                <li><Link href="/earnings" className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block">Earnings</Link></li>
-                <li><Link href="/my-sessions" className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block">My Sessions</Link></li>
-                <li><Link href="/resources" className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block">Resources</Link></li>
+                <li><Link href={ROUTES.AUTH.REGISTER_COACH} className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block cursor-pointer">Become a Coach</Link></li>
+                <li><Link href={ROUTES.AUTH.LOGIN} className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block cursor-pointer">Earnings</Link></li>
+                <li><Link href={ROUTES.AUTH.LOGIN} className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block cursor-pointer">My Sessions</Link></li>
+                <li><Link href={ROUTES.RESOURCES} className="text-gray-400 hover:text-white hover:translate-x-1 transition-all duration-300 inline-block cursor-pointer">Resources</Link></li>
               </ul>
             </div>
             

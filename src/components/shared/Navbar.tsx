@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Logo } from '@/components/ui/logo';
+import { ROUTES } from '@/constants/routes';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Menu, X, User, Settings, LogOut } from 'lucide-react';
+import { Menu, X, Settings, LogOut } from 'lucide-react';
 
 export default function Navbar() {
   const { data: session, status } = useSession();
@@ -24,37 +24,36 @@ export default function Navbar() {
     signOut({ callbackUrl: '/' });
   };
 
+  const isCoach = session?.user?.role === 'coach';
+
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <Logo size="md" variant="default" />
+            <Logo 
+              size="md" 
+              variant="default" 
+              href={session ? (isCoach ? ROUTES.DASHBOARD.COACH_BASE : ROUTES.DASHBOARD.LEARNER_BASE) : ROUTES.HOME} 
+            />
           </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <a href="/dashboard" className="text-gray-700 hover:text-gray-900">
+            <a href={isCoach ? ROUTES.DASHBOARD.COACH_BASE : ROUTES.DASHBOARD.LEARNER_BASE} className="text-gray-700 hover:text-gray-900">
               Dashboard
             </a>
-            <a href="/explore" className="text-gray-700 hover:text-gray-900">
+            <a href={ROUTES.LEARNER.EXPLORE} className="text-gray-700 hover:text-gray-900">
               Explore
             </a>
-            {session?.user?.role === 'learner' && (
-              <a href="/my-bookings" className="text-gray-700 hover:text-gray-900">
-                My Bookings
+            <a href={isCoach ? ROUTES.COACH.MY_SESSIONS : ROUTES.LEARNER.MY_SESSIONS} className="text-gray-700 hover:text-gray-900">
+              My Sessions
+            </a>
+            {isCoach && (
+              <a href={ROUTES.COACH.EARNINGS} className="text-gray-700 hover:text-gray-900">
+                Earnings
               </a>
-            )}
-            {session?.user?.role === 'coach' && (
-              <>
-                <a href="/my-sessions" className="text-gray-700 hover:text-gray-900">
-                  My Sessions
-                </a>
-                <a href="/earnings" className="text-gray-700 hover:text-gray-900">
-                  Earnings
-                </a>
-              </>
             )}
           </div>
 
@@ -88,14 +87,14 @@ export default function Navbar() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
+                  <DropdownMenuItem asChild className="cursor-pointer">
                     <a href="/settings" className="flex items-center">
                       <Settings className="mr-2 h-4 w-4" />
                       <span>Settings</span>
                     </a>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} className="flex items-center">
+                  <DropdownMenuItem onClick={handleSignOut} className="flex items-center cursor-pointer">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Sign out</span>
                   </DropdownMenuItem>
@@ -134,51 +133,40 @@ export default function Navbar() {
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-gray-200">
               <a
-                href="/dashboard"
+                href={isCoach ? ROUTES.DASHBOARD.COACH_BASE : ROUTES.DASHBOARD.LEARNER_BASE}
                 className="block px-3 py-2 text-gray-700 hover:text-gray-900"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Dashboard
               </a>
               <a
-                href="/explore"
+                href={ROUTES.LEARNER.EXPLORE}
                 className="block px-3 py-2 text-gray-700 hover:text-gray-900"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Explore
               </a>
-              {session?.user?.role === 'learner' && (
+              <a
+                href={isCoach ? ROUTES.COACH.MY_SESSIONS : ROUTES.LEARNER.MY_SESSIONS}
+                className="block px-3 py-2 text-gray-700 hover:text-gray-900"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                My Sessions
+              </a>
+              {isCoach && (
                 <a
-                  href="/my-bookings"
+                  href={ROUTES.COACH.EARNINGS}
                   className="block px-3 py-2 text-gray-700 hover:text-gray-900"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  My Bookings
+                  Earnings
                 </a>
-              )}
-              {session?.user?.role === 'coach' && (
-                <>
-                  <a
-                    href="/my-sessions"
-                    className="block px-3 py-2 text-gray-700 hover:text-gray-900"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    My Sessions
-                  </a>
-                  <a
-                    href="/earnings"
-                    className="block px-3 py-2 text-gray-700 hover:text-gray-900"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    Earnings
-                  </a>
-                </>
               )}
               {session && (
                 <>
                   <a
                     href="/settings"
-                    className="block px-3 py-2 text-gray-700 hover:text-gray-900"
+                    className="block px-3 py-2 text-gray-700 hover:text-gray-900 cursor-pointer"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     Settings
@@ -188,7 +176,7 @@ export default function Navbar() {
                       handleSignOut();
                       setIsMobileMenuOpen(false);
                     }}
-                    className="block w-full text-left px-3 py-2 text-gray-700 hover:text-gray-900"
+                    className="block w-full text-left px-3 py-2 text-gray-700 hover:text-gray-900 cursor-pointer"
                   >
                     Sign out
                   </button>

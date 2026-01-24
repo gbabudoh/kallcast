@@ -1,18 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import connectDB from '@/lib/db';
+import mongoose from 'mongoose';
 import Slot from '@/models/Slot';
 import { updateSlotSchema } from '@/validations/coach';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { slotId: string } }
+  { params }: { params: Promise<{ slotId: string }> }
 ) {
+  const { slotId } = await params;
   try {
     await connectDB();
     
-    const slot = await Slot.findById(params.slotId)
-      .populate('coachId', 'firstName lastName profileImage hourlyRate averageRating bio expertise');
+    let slot;
+    if (mongoose.Types.ObjectId.isValid(slotId)) {
+      slot = await Slot.findById(slotId)
+        .populate('coachId', 'firstName lastName profileImage hourlyRate averageRating bio expertise');
+    }
+
+    if (!slot && slotId.startsWith('mock-slot-')) {
+      // Return a mock slot for testing the booking flow
+      slot = {
+        _id: slotId,
+        title: 'Strategy & Leadership Acceleration Session',
+        price: 150,
+        duration: 60,
+        maxParticipants: 1,
+        currentParticipants: 0,
+        startTime: new Date(Date.now() + 86400000).toISOString(),
+        endTime: new Date(Date.now() + 90000000).toISOString(),
+        category: 'Product Strategy',
+        coachId: {
+          _id: '65af5656c5435016c6800101',
+          firstName: 'Sarah',
+          lastName: 'Johnson',
+          profileImage: undefined,
+          hourlyRate: 150,
+          averageRating: 4.9,
+          bio: 'Former Google PM with 8+ years building products used by millions.',
+          expertise: ['Product Strategy', 'Leadership', 'Agile']
+        }
+      };
+    }
 
     if (!slot) {
       return NextResponse.json({ message: 'Slot not found' }, { status: 404 });
@@ -30,8 +60,9 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { slotId: string } }
+  { params }: { params: Promise<{ slotId: string }> }
 ) {
+  const { slotId } = await params;
   try {
     const session = await auth();
     if (!session) {
@@ -40,7 +71,7 @@ export async function PATCH(
 
     await connectDB();
     
-    const slot = await Slot.findById(params.slotId);
+    const slot = await Slot.findById(slotId);
     if (!slot) {
       return NextResponse.json({ message: 'Slot not found' }, { status: 404 });
     }
@@ -65,7 +96,7 @@ export async function PATCH(
 
     const data = validationResult.data;
     const updatedSlot = await Slot.findByIdAndUpdate(
-      params.slotId,
+      slotId,
       data,
       { new: true, runValidators: true }
     ).populate('coachId', 'firstName lastName profileImage');
@@ -85,8 +116,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { slotId: string } }
+  { params }: { params: Promise<{ slotId: string }> }
 ) {
+  const { slotId } = await params;
   try {
     const session = await auth();
     if (!session) {
@@ -95,7 +127,7 @@ export async function DELETE(
 
     await connectDB();
     
-    const slot = await Slot.findById(params.slotId);
+    const slot = await Slot.findById(slotId);
     if (!slot) {
       return NextResponse.json({ message: 'Slot not found' }, { status: 404 });
     }
@@ -113,7 +145,7 @@ export async function DELETE(
       );
     }
 
-    await Slot.findByIdAndDelete(params.slotId);
+    await Slot.findByIdAndDelete(slotId);
 
     return NextResponse.json({ message: 'Slot deleted successfully' });
   } catch (error) {

@@ -38,28 +38,40 @@ export async function POST(request: NextRequest) {
       case 'checkout.session.completed': {
         const session = event.data.object;
         const metadata = session.metadata || {};
-        const { slotId, coachId, learnerId, platformFee, coachPayout } = metadata;
+        const { bookingId, slotId, coachId, learnerId } = metadata;
 
-        // Create booking
-        const booking = new Booking({
-          slotId,
-          learnerId,
-          coachId,
-          amount: (session.amount_total || 0) / 100, // Convert from cents
-          platformFee: parseInt(platformFee || '0'),
-          stripeFee: 0, // Will be calculated
-          coachPayout: parseInt(coachPayout || '0'),
-          paymentIntentId: session.payment_intent as string,
-          paymentStatus: 'paid',
-          sessionStatus: 'scheduled',
-          videoRoomUrl: '',
-          videoRoomId: '',
-          scheduledFor: new Date(), // Will be updated with actual slot time
-        });
+        if (!bookingId) {
+          console.error('No bookingId in session metadata');
+          break;
+        }
+
+        // Find existing pending booking
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+          console.error(`Booking not found: ${bookingId}`);
+          break;
+        }
+
+        // Finalize booking with Stripe details and precise fees
+        booking.paymentIntentId = session.payment_intent as string;
+        booking.paymentStatus = 'authorized'; // Escrowed
+        booking.escrowStatus = 'authorized';
+        
+        // Re-calculate fees for precision based on actual amount_total
+        const amountTotal = (session.amount_total || 0) / 100;
+        const platformFee = parseFloat(metadata.platformFee || '0');
+        const stripeFee = parseFloat(metadata.stripeFee || '0');
+        const coachPayout = parseFloat(metadata.coachPayout || '0');
+
+        booking.amount = amountTotal;
+        booking.platformFee = platformFee;
+        booking.stripeFee = stripeFee;
+        booking.coachPayout = coachPayout;
 
         // Create video room
         const slot = await Slot.findById(slotId);
         if (slot) {
+          // Note: createRoom in lib/daily handled name conflict previously
           const room = await createRoom({
             name: `session-${booking._id}`,
             maxParticipants: slot.maxParticipants,
@@ -84,21 +96,22 @@ export async function POST(request: NextRequest) {
           await slot.save();
         }
 
-        // Create payment record
-        const payment = new Payment({
-          bookingId: booking._id,
-          coachId,
-          learnerId,
-          amount: booking.amount,
-          platformFee: booking.platformFee,
-          stripeFee: 0,
-          coachPayout: booking.coachPayout,
-          stripePaymentIntentId: session.payment_intent as string,
-          status: 'held',
-          paidAt: new Date(),
-        });
-
-        await payment.save();
+        // Create/Update payment record
+        await Payment.findOneAndUpdate(
+          { bookingId: booking._id },
+          {
+            coachId,
+            learnerId,
+            amount: booking.amount,
+            platformFee: booking.platformFee,
+            stripeFee: booking.stripeFee,
+            coachPayout: booking.coachPayout,
+            stripePaymentIntentId: session.payment_intent as string,
+            status: 'held',
+            paidAt: new Date(),
+          },
+          { upsert: true, new: true }
+        );
 
         // Send confirmation emails
         const learner = await User.findById(learnerId);
@@ -124,13 +137,11 @@ export async function POST(request: NextRequest) {
       }
 
       case 'payment_intent.succeeded': {
-        const paymentIntent = event.data.object;
         // Update booking payment status if needed
         break;
       }
 
       case 'payment_intent.payment_failed': {
-        const paymentIntent = event.data.object;
         // Handle failed payment
         break;
       }

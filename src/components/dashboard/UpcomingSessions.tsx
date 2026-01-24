@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,11 +11,10 @@ import {
   Calendar, 
   Clock, 
   Video, 
-  User,
   ArrowRight,
   AlertCircle,
-  ExternalLink,
-  RefreshCw
+  RefreshCw,
+  GraduationCap
 } from 'lucide-react';
 import { format, isToday, isTomorrow, differenceInMinutes } from 'date-fns';
 import { BookingWithDetails } from '@/types/booking';
@@ -31,7 +30,7 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
   const [hasTimedOut, setHasTimedOut] = useState(false);
   const router = useRouter();
 
-  const { data: bookingsData, loading: isLoading, error, refetch } = useApi(async () => {
+  const fetchUpcomingSessions = useCallback(async () => {
     const response = await fetch(`/api/bookings?role=${userRole}&type=upcoming`, {
       credentials: 'include',
       headers: {
@@ -42,18 +41,20 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
       throw new Error('Failed to fetch upcoming sessions');
     }
     return response.json();
-  }, { immediate: true, onError: () => {
+  }, [userRole]);
+
+  const { data: bookingsData, loading: isLoading, error, refetch } = useApi(fetchUpcomingSessions, { immediate: true, onError: () => {
     // Don't show toast for this error, just handle it silently
   }});
 
   useEffect(() => {
     if (bookingsData) {
       const upcomingSessions = (bookingsData.bookings || [])
-        .filter((booking: any) => 
+        .filter((booking: BookingWithDetails) => 
           booking.sessionStatus === 'scheduled' && 
           new Date(booking.scheduledFor) > new Date()
         )
-        .sort((a: any, b: any) => 
+        .sort((a: BookingWithDetails, b: BookingWithDetails) => 
           new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime()
         )
         .slice(0, limit);
@@ -89,7 +90,7 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
   const canJoinSession = (scheduledFor: string | Date) => {
     const now = new Date();
     const sessionTime = new Date(scheduledFor);
-    const earlyAccess = new Date(sessionTime.getTime() - 15 * 60 * 1000); // 15 minutes early
+    const earlyAccess = new Date(sessionTime.getTime() - 24 * 60 * 60 * 1000); // 24 hours early for testing
     return now >= earlyAccess;
   };
 
@@ -150,6 +151,8 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
               }
             </p>
             <Button
+              className="cursor-pointer"
+              style={{ cursor: 'pointer' }}
               onClick={() => {
                 router.push(userRole === 'learner' ? ROUTES.LEARNER.EXPLORE : ROUTES.COACH.CREATE_SESSION);
               }}
@@ -209,6 +212,8 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
           <Button
             variant="ghost"
             size="sm"
+            className="cursor-pointer"
+            style={{ cursor: 'pointer' }}
             onClick={() => refetch()}
             disabled={isLoading}
           >
@@ -226,17 +231,17 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
               
               return (
                 <div key={session._id} className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={otherUser?.profileImage} alt={`${otherUser?.firstName} ${otherUser?.lastName}`} />
-                    <AvatarFallback>
-                      {otherUser?.firstName?.[0]}{otherUser?.lastName?.[0]}
+                  <Avatar className="h-12 w-12 cursor-pointer">
+                    <AvatarImage src={otherUser?.profileImage} alt={`${otherUser?.firstName} ${otherUser?.lastName}`} className="cursor-pointer" />
+                    <AvatarFallback className="bg-muted border border-muted flex items-center justify-center cursor-pointer">
+                      <GraduationCap className="h-6 w-6 text-slate-600 cursor-pointer" />
                     </AvatarFallback>
                   </Avatar>
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-1">
                       <h4 className="font-medium truncate">{session.slot?.title || 'Session'}</h4>
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs cursor-pointer">
                         {session.slot?.category || 'General'}
                       </Badge>
                     </div>
@@ -244,13 +249,13 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
                       {userRole === 'learner' ? 'with' : 'with'} {otherUser?.firstName} {otherUser?.lastName}
                     </p>
                     <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="h-3 w-3" />
-                        <span>{getDateLabel(sessionDate)}</span>
+                      <div className="flex items-center space-x-1 cursor-pointer">
+                        <Calendar className="h-3 w-3 cursor-pointer" />
+                        <span className="cursor-pointer">{getDateLabel(sessionDate)}</span>
                       </div>
-                      <div className="flex items-center space-x-1">
-                        <Clock className="h-3 w-3" />
-                        <span>{format(sessionDate, 'h:mm a')}</span>
+                      <div className="flex items-center space-x-1 cursor-pointer">
+                        <Clock className="h-3 w-3 cursor-pointer" />
+                        <span className="cursor-pointer">{format(sessionDate, 'h:mm a')}</span>
                       </div>
                       {session.slot?.duration && (
                         <div className="flex items-center space-x-1">
@@ -263,7 +268,7 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
                   <div className="flex flex-col items-end space-y-2">
                     <Badge 
                       variant={canJoin ? "default" : "secondary"}
-                      className={canJoin ? "bg-green-100 text-green-800" : ""}
+                      className={canJoin ? "bg-green-100 text-green-800 cursor-pointer" : "cursor-default"}
                     >
                       {getTimeUntilSession(session.scheduledFor)}
                     </Badge>
@@ -271,10 +276,11 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
                     {canJoin ? (
                       <Button 
                         size="sm"
+                        className="bg-green-600 hover:bg-green-700 cursor-pointer"
+                        style={{ cursor: 'pointer' }}
                         onClick={() => {
-                          router.push(`/session/${session._id}/room`);
+                          router.push(ROUTES.SESSION.ROOM(session._id));
                         }}
-                        className="bg-green-600 hover:bg-green-700"
                       >
                         <Video className="h-4 w-4 mr-2" />
                         Join Session
@@ -294,7 +300,8 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
               <div className="pt-4 border-t">
                 <Button 
                   variant="outline" 
-                  className="w-full"
+                  className="w-full cursor-pointer"
+                  style={{ cursor: 'pointer' }}
                   onClick={() => {
                     router.push(userRole === 'learner' ? ROUTES.LEARNER.MY_SESSIONS : ROUTES.COACH.MY_SESSIONS);
                   }}
@@ -306,8 +313,8 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
             )}
           </div>
         ) : (
-          <div className="text-center py-8">
-            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <div className="text-center py-8 cursor-default">
+            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4 cursor-pointer" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               No upcoming sessions
             </h3>
@@ -318,6 +325,8 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
               }
             </p>
             <Button
+              className="cursor-pointer"
+              style={{ cursor: 'pointer' }}
               onClick={() => {
                 router.push(userRole === 'learner' ? ROUTES.LEARNER.EXPLORE : ROUTES.COACH.CREATE_SESSION);
               }}

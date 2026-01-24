@@ -1,11 +1,13 @@
 import NextAuth from 'next-auth';
+import type { NextAuthConfig, Session, User } from 'next-auth';
+import { type JWT } from 'next-auth/jwt';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import connectDB from './db';
-import User from '@/models/User';
+import UserModel from '@/models/User';
 import { AuthUser } from '@/types/user';
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const authConfig: NextAuthConfig = {
   providers: [
     CredentialsProvider({
       name: 'credentials',
@@ -21,7 +23,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           await connectDB();
           
-          const user = await User.findOne({ email: credentials.email });
+          const user = await UserModel.findOne({ email: credentials.email });
           if (!user) {
             return null;
           }
@@ -44,7 +46,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             profileImage: user.profileImage,
             isVerified: user.isVerified,
             stripeOnboardingComplete: user.stripeOnboardingComplete,
-          } as AuthUser;
+          } as User;
         } catch (error) {
           console.error('Auth error:', error);
           return null;
@@ -56,7 +58,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     strategy: 'jwt',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user }: { token: JWT; user?: User }) {
       if (user) {
         token.role = user.role;
         token.firstName = user.firstName;
@@ -67,30 +69,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return token;
     },
-    async session({ session, token }) {
-      if (token) {
+    async session({ session, token }: { session: Session; token: JWT }) {
+      if (token && session.user) {
         session.user.id = token.sub!;
-        session.user.role = token.role as 'learner' | 'coach';
-        session.user.firstName = token.firstName as string;
-        session.user.lastName = token.lastName as string;
-        session.user.profileImage = token.profileImage as string;
-        session.user.isVerified = token.isVerified as boolean;
-        session.user.stripeOnboardingComplete = token.stripeOnboardingComplete as boolean;
+        session.user.role = token.role;
+        session.user.firstName = token.firstName;
+        session.user.lastName = token.lastName;
+        session.user.profileImage = token.profileImage;
+        session.user.isVerified = token.isVerified;
+        session.user.stripeOnboardingComplete = token.stripeOnboardingComplete;
       }
       return session;
     }
   },
   pages: {
     signIn: '/login',
-    signUp: '/register',
   },
   secret: process.env.NEXTAUTH_SECRET,
-});
+  trustHost: true,
+};
+
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 
 declare module 'next-auth' {
   interface Session {
     user: AuthUser;
   }
 
-  interface User extends AuthUser {}
+  interface User extends AuthUser {
+    id: string;
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT extends AuthUser {
+    sub?: string;
+  }
 }

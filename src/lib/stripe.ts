@@ -5,13 +5,41 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-12-18.acacia',
+  // Let SDK use default version to avoid type mismatches
 });
 
 export const PLATFORM_FEE_PERCENTAGE = 0.20; // 20%
 
+/**
+ * Calculate fees based on user-provided requirements:
+ * Platform keeps 20%
+ * Stripe Fee = Math.ceil((amount + 30) / (1 - 0.029) - amount)
+ */
+export function calculateFees(amountInDollars: number) {
+  const amountInCents = amountInDollars * 100;
+  
+  // Specific formula provided by USER
+  // Math.ceil((10000 + 30) / (1 - 0.029) - 10000)
+  const stripeFeeInCents = Math.ceil((amountInCents + 30) / (1 - 0.029) - amountInCents);
+  const platformFeeInCents = Math.round(amountInCents * PLATFORM_FEE_PERCENTAGE);
+  const coachPayoutInCents = amountInCents - platformFeeInCents - stripeFeeInCents;
+
+  return {
+    totalInCents: amountInCents,
+    stripeFeeInCents,
+    platformFeeInCents,
+    coachPayoutInCents,
+    // Dollar versions for display/storage
+    totalDollars: amountInDollars,
+    stripeFeeDollars: stripeFeeInCents / 100,
+    platformFeeDollars: platformFeeInCents / 100,
+    coachPayoutDollars: coachPayoutInCents / 100,
+  };
+}
+
 export interface CreateCheckoutSessionParams {
   slotId: string;
+  bookingId: string; // Add bookingId for metadata tracking
   coachId: string;
   learnerId: string;
   amount: number;
@@ -21,14 +49,14 @@ export interface CreateCheckoutSessionParams {
 
 export async function createCheckoutSession({
   slotId,
+  bookingId,
   coachId,
   learnerId,
   amount,
   successUrl,
   cancelUrl,
 }: CreateCheckoutSessionParams) {
-  const platformFee = Math.round(amount * PLATFORM_FEE_PERCENTAGE);
-  const coachPayout = amount - platformFee;
+  const fees = calculateFees(amount);
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ['card'],
@@ -38,9 +66,9 @@ export async function createCheckoutSession({
           currency: 'usd',
           product_data: {
             name: 'Coaching Session',
-            description: `Coaching session booking`,
+            description: `Professional coaching session - Kallcast`,
           },
-          unit_amount: amount * 100, // Convert to cents
+          unit_amount: fees.totalInCents,
         },
         quantity: 1,
       },
@@ -50,17 +78,16 @@ export async function createCheckoutSession({
     cancel_url: cancelUrl,
     metadata: {
       slotId,
+      bookingId, // Important for webhook identification
       coachId,
       learnerId,
-      platformFee: platformFee.toString(),
-      coachPayout: coachPayout.toString(),
+      platformFee: fees.platformFeeDollars.toString(),
+      stripeFee: fees.stripeFeeDollars.toString(),
+      coachPayout: fees.coachPayoutDollars.toString(),
     },
-    payment_intent_data: {
-      application_fee_amount: Math.round(platformFee * 100), // Convert to cents
-      transfer_data: {
-        destination: coachId, // Coach's Stripe Connect account
-      },
-    },
+    // REMOVED application_fee_amount and transfer_data
+    // We are using 'Separate Charges and Transfers' (Step 2 and 4 in user request)
+    // The funds will stay in our platform account until we trigger createTransfer manually.
   });
 
   return session;
@@ -68,11 +95,10 @@ export async function createCheckoutSession({
 
 export async function createStripeConnectAccount(email: string) {
   const account = await stripe.accounts.create({
-    type: 'express',
+    type: 'express', // Use express as requested
     country: 'US',
     email,
     capabilities: {
-      card_payments: { requested: true },
       transfers: { requested: true },
     },
   });
@@ -96,21 +122,21 @@ export async function getAccount(accountId: string) {
   return account;
 }
 
-export async function createTransfer(amount: number, destination: string, transferGroup: string) {
+export async function createTransfer(amountDollars: number, destinationAccountId: string, transferGroup: string) {
   const transfer = await stripe.transfers.create({
-    amount: Math.round(amount * 100), // Convert to cents
+    amount: Math.round(amountDollars * 100), // Payout in cents
     currency: 'usd',
-    destination,
-    transfer_group: transferGroup,
+    destination: destinationAccountId,
+    transfer_group: transferGroup, // Usually the bookingId or paymentIntentId
   });
 
   return transfer;
 }
 
-export async function createRefund(paymentIntentId: string, amount?: number) {
+export async function createRefund(paymentIntentId: string, amountDollars?: number) {
   const refund = await stripe.refunds.create({
     payment_intent: paymentIntentId,
-    amount: amount ? Math.round(amount * 100) : undefined, // Convert to cents
+    amount: amountDollars ? Math.round(amountDollars * 100) : undefined,
   });
 
   return refund;

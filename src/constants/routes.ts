@@ -6,6 +6,8 @@ export const ROUTES = {
   CONTACT: '/contact',
   PRICING: '/pricing',
   HELP: '/help',
+  RESOURCES: '/resources',
+  EXPLAIN: '/explain',
   TERMS: '/terms',
   PRIVACY: '/privacy',
   
@@ -22,6 +24,8 @@ export const ROUTES = {
   // Dashboard Routes
   DASHBOARD: {
     BASE: '/dashboard',
+    LEARNER_BASE: '/learner/dashboard',
+    COACH_BASE: '/coach/dashboard',
     PROFILE: '/dashboard/profile',
     SETTINGS: '/dashboard/settings',
     NOTIFICATIONS: '/dashboard/notifications',
@@ -30,19 +34,19 @@ export const ROUTES = {
   
   // Learner Routes
   LEARNER: {
-    EXPLORE: '/explore',
-    MY_BOOKINGS: '/my-bookings',
-    MY_SESSIONS: '/my-sessions',
-    FAVORITES: '/favorites',
-    LEARNING_HISTORY: '/learning-history',
+    EXPLORE: '/learner/explore',
+    MY_BOOKINGS: '/learner/my-bookings',
+    MY_SESSIONS: '/learner/my-sessions',
+    FAVORITES: '/learner/favorites',
+    LEARNING_HISTORY: '/learner/learning-history',
   },
   
   // Coach Routes
   COACH: {
-    MY_SESSIONS: '/my-sessions',
-    CREATE_SESSION: '/my-sessions/create',
-    EARNINGS: '/earnings',
-    STUDENTS: '/students',
+    MY_SESSIONS: '/coach/my-sessions',
+    CREATE_SESSION: '/coach/my-sessions/create',
+    EARNINGS: '/coach/earnings',
+    STUDENTS: '/coach/students',
     ANALYTICS: '/analytics',
     ONBOARDING: '/coach-onboarding',
   },
@@ -63,9 +67,10 @@ export const ROUTES = {
   
   // Session Routes
   SESSION: {
-    ROOM: (sessionId: string) => `/session/${sessionId}/room`,
-    RECORDING: (sessionId: string) => `/session/${sessionId}/recording`,
-    FEEDBACK: (sessionId: string) => `/session/${sessionId}/feedback`,
+    BASE: (bookingId: string) => `/session/${bookingId}`,
+    ROOM: (bookingId: string) => `/session/${bookingId}`,
+    RECORDING: (bookingId: string) => `/session/${bookingId}/recording`,
+    FEEDBACK: (bookingId: string) => `/session/${bookingId}/feedback`,
   },
   
   // Admin Routes
@@ -96,6 +101,8 @@ export const ROUTES = {
 // Route Protection
 export const PROTECTED_ROUTES = [
   ROUTES.DASHBOARD.BASE,
+  ROUTES.DASHBOARD.LEARNER_BASE,
+  ROUTES.DASHBOARD.COACH_BASE,
   ROUTES.DASHBOARD.PROFILE,
   ROUTES.DASHBOARD.SETTINGS,
   ROUTES.DASHBOARD.NOTIFICATIONS,
@@ -119,6 +126,8 @@ export const PUBLIC_ROUTES = [
   ROUTES.ABOUT,
   ROUTES.CONTACT,
   ROUTES.PRICING,
+  ROUTES.RESOURCES,
+  ROUTES.EXPLAIN,
   ROUTES.HELP,
   ROUTES.TERMS,
   ROUTES.PRIVACY,
@@ -132,6 +141,7 @@ export const PUBLIC_ROUTES = [
 
 // Coach-Only Routes
 export const COACH_ROUTES = [
+  ROUTES.DASHBOARD.COACH_BASE,
   ROUTES.COACH.MY_SESSIONS,
   ROUTES.COACH.CREATE_SESSION,
   ROUTES.COACH.EARNINGS,

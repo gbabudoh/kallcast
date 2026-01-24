@@ -1,83 +1,75 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
-import { Sparkles } from 'lucide-react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 interface LogoProps {
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   variant?: 'default' | 'white' | 'dark';
-  showIcon?: boolean;
-  href?: string;
+  showIconOnly?: boolean;
   className?: string;
+  href?: string;
 }
 
 const sizeClasses = {
   sm: {
-    icon: 'w-6 h-6',
-    iconContainer: 'w-8 h-8',
-    text: 'text-lg',
-    spacing: 'space-x-2'
+    container: 'h-8',
+    image: { width: 100, height: 32 }
   },
   md: {
-    icon: 'w-6 h-6',
-    iconContainer: 'w-10 h-10',
-    text: 'text-2xl',
-    spacing: 'space-x-3'
+    container: 'h-10',
+    image: { width: 125, height: 40 }
   },
   lg: {
-    icon: 'w-7 h-7',
-    iconContainer: 'w-12 h-12',
-    text: 'text-3xl',
-    spacing: 'space-x-3'
+    container: 'h-12',
+    image: { width: 150, height: 48 }
+  },
+  xl: {
+    container: 'h-16',
+    image: { width: 200, height: 64 }
   }
 };
 
-const variantClasses = {
-  default: {
-    iconContainer: 'bg-gradient-to-br from-blue-600 to-purple-600',
-    icon: 'text-white',
-    text: 'bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent'
+const iconSizeClasses = {
+  sm: {
+    container: 'h-8 w-8',
+    image: { width: 32, height: 32 }
   },
-  white: {
-    iconContainer: 'bg-white/20 backdrop-blur-sm',
-    icon: 'text-white',
-    text: 'text-white'
+  md: {
+    container: 'h-10 w-10',
+    image: { width: 40, height: 40 }
   },
-  dark: {
-    iconContainer: 'bg-gradient-to-br from-blue-600 to-purple-600',
-    icon: 'text-white',
-    text: 'text-gray-900'
+  lg: {
+    container: 'h-12 w-12',
+    image: { width: 48, height: 48 }
+  },
+  xl: {
+    container: 'h-16 w-16',
+    image: { width: 64, height: 64 }
   }
 };
 
 export const Logo: React.FC<LogoProps> = ({
   size = 'md',
-  variant = 'default',
-  showIcon = true,
+  showIconOnly = false,
+  className,
   href = '/',
-  className
 }) => {
-  const sizeConfig = sizeClasses[size];
-  const variantConfig = variantClasses[variant];
+  const config = showIconOnly ? iconSizeClasses[size] : sizeClasses[size];
+  const src = showIconOnly ? '/icon.png' : '/logo.png';
 
   const logoContent = (
-    <div className={cn('flex items-center', sizeConfig.spacing, className)}>
-      {showIcon && (
-        <div className={cn(
-          sizeConfig.iconContainer,
-          'rounded-xl flex items-center justify-center shadow-lg',
-          variantConfig.iconContainer
-        )}>
-          <Sparkles className={cn(sizeConfig.icon, variantConfig.icon)} />
-        </div>
-      )}
-      <h1 className={cn(
-        sizeConfig.text,
-        'font-bold',
-        variantConfig.text
-      )}>
-        Kallcast
-      </h1>
+    <div className={cn('relative flex items-center', config.container, className)}>
+      <Image
+        src={src}
+        alt="Kallcast Logo"
+        width={config.image.width}
+        height={config.image.height}
+        className="object-contain"
+        priority
+      />
     </div>
   );
 

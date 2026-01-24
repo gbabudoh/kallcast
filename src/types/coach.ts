@@ -25,6 +25,18 @@ export interface CoachProfile {
   averageRating: number;
   totalSessions: number;
   isVerified: boolean;
+  title?: string;
+  company?: string;
+  location?: string;
+  responseTime?: number;
+  background?: string;
+  specialties?: string[];
+  sessionTitle?: string;
+  sessionGains?: string[];
+  coachAchievements?: {
+    title: string;
+    description?: string;
+  }[];
 }
 
 export interface CoachStats {

@@ -22,6 +22,37 @@ export interface User {
   totalSessions?: number;
   averageRating?: number;
   totalEarnings?: number;
+  profileViews?: number;
+
+  // Learner specific tracking
+  learningGoals?: {
+    title: string;
+    target: number;
+    current: number;
+    category?: string;
+  }[];
+  achievements?: {
+    title: string;
+    icon: string;
+    description?: string;
+    unlockedAt: Date;
+  }[];
+  learningStreak?: number;
+  lastActivityDate?: Date;
+
+  // Enhanced Coach fields
+  title?: string;
+  company?: string;
+  location?: string;
+  responseTime?: number;
+  specialties?: string[];
+  background?: string;
+  sessionTitle?: string;
+  sessionGains?: string[];
+  coachAchievements?: {
+    title: string;
+    description?: string;
+  }[];
 }
 
 export interface CreateUserRequest {
@@ -57,4 +88,6 @@ export interface AuthUser {
   profileImage?: string;
   isVerified?: boolean;
   stripeOnboardingComplete?: boolean;
+  title?: string;
+  company?: string;
 }

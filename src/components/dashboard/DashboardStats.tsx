@@ -1,15 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useApi } from '@/hooks';
+import { BookingWithDetails } from '@/types/booking';
 import { 
   Calendar, 
-  Users, 
   DollarSign, 
   Star,
-  TrendingUp,
   Clock,
   BookOpen,
   Video
@@ -37,9 +35,9 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
     averageRating: 0,
     totalHours: 0,
   });
-  const [hasTimedOut, setHasTimedOut] = useState(false);
 
-  const { data: bookingsData, loading: isLoading } = useApi(async () => {
+
+  const fetchBookings = useCallback(async () => {
     const response = await fetch(`/api/bookings?role=${userRole}&type=all`, {
       credentials: 'include',
       headers: {
@@ -50,7 +48,9 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
       throw new Error('Failed to fetch stats');
     }
     return response.json();
-  }, { immediate: true, onError: () => {
+  }, [userRole]);
+
+  const { data: bookingsData } = useApi(fetchBookings, { immediate: true, onError: () => {
     // Don't show toast for this error, just handle it silently
   }});
 
@@ -60,24 +60,24 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
       
       // Calculate stats
       const totalSessions = bookings.length;
-      const upcomingSessions = bookings.filter((b: any) => 
+      const upcomingSessions = bookings.filter((b: BookingWithDetails) => 
         b.sessionStatus === 'scheduled' && new Date(b.scheduledFor) > new Date()
       ).length;
-      const completedSessions = bookings.filter((b: any) => 
+      const completedSessions = bookings.filter((b: BookingWithDetails) => 
         b.sessionStatus === 'completed'
       ).length;
       
       const totalEarnings = userRole === 'coach' 
         ? bookings
-            .filter((b: any) => b.sessionStatus === 'completed')
-            .reduce((sum: number, b: any) => sum + (b.coachPayout || 0), 0)
+            .filter((b: BookingWithDetails) => b.sessionStatus === 'completed')
+            .reduce((sum: number, b: BookingWithDetails) => sum + (b.coachPayout || 0), 0)
         : bookings
-            .filter((b: any) => b.sessionStatus === 'completed')
-            .reduce((sum: number, b: any) => sum + b.amount, 0);
+            .filter((b: BookingWithDetails) => b.sessionStatus === 'completed')
+            .reduce((sum: number, b: BookingWithDetails) => sum + b.amount, 0);
       
       const totalHours = bookings
-        .filter((b: any) => b.sessionStatus === 'completed')
-        .reduce((sum: number, b: any) => sum + (b.slot?.duration || 0), 0) / 60;
+        .filter((b: BookingWithDetails) => b.sessionStatus === 'completed')
+        .reduce((sum: number, b: BookingWithDetails) => sum + (b.slot?.duration || 0), 0) / 60;
       
       setStats({
         totalSessions,
@@ -89,23 +89,13 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
     }
   }, [bookingsData, userRole]);
 
-  // Add timeout to prevent infinite loading
-  useEffect(() => {
-    if (isLoading) {
-      const timeout = setTimeout(() => {
-        setHasTimedOut(true);
-      }, 10000); // 10 second timeout
 
-      return () => clearTimeout(timeout);
-    } else {
-      setHasTimedOut(false);
-    }
-  }, [isLoading]);
 
   const statsCards = userRole === 'learner' ? [
     {
       title: 'Total Sessions',
       value: stats.totalSessions,
+      rawVal: stats.totalSessions,
       description: 'Sessions booked',
       icon: BookOpen,
       color: 'text-blue-600',
@@ -113,6 +103,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
     {
       title: 'Upcoming Sessions',
       value: stats.upcomingSessions,
+      rawVal: stats.upcomingSessions,
       description: 'Sessions scheduled',
       icon: Calendar,
       color: 'text-green-600',
@@ -120,6 +111,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
     {
       title: 'Completed Sessions',
       value: stats.completedSessions,
+      rawVal: stats.completedSessions,
       description: 'Sessions finished',
       icon: Video,
       color: 'text-purple-600',
@@ -127,6 +119,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
     {
       title: 'Learning Hours',
       value: Math.round(stats.totalHours || 0),
+      rawVal: Math.round(stats.totalHours || 0),
       description: 'Hours of learning',
       icon: Clock,
       color: 'text-orange-600',
@@ -135,6 +128,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
     {
       title: 'Total Sessions',
       value: stats.totalSessions,
+      rawVal: stats.totalSessions,
       description: 'Sessions conducted',
       icon: BookOpen,
       color: 'text-blue-600',
@@ -142,6 +136,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
     {
       title: 'Upcoming Sessions',
       value: stats.upcomingSessions,
+      rawVal: stats.upcomingSessions,
       description: 'Sessions scheduled',
       icon: Calendar,
       color: 'text-green-600',
@@ -149,6 +144,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
     {
       title: 'Total Earnings',
       value: `$${stats.totalEarnings || 0}`,
+      rawVal: stats.totalEarnings || 0,
       description: 'Lifetime earnings',
       icon: DollarSign,
       color: 'text-green-600',
@@ -156,6 +152,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
     {
       title: 'Average Rating',
       value: stats.averageRating || 0,
+      rawVal: stats.averageRating || 0,
       description: 'Based on reviews',
       icon: Star,
       color: 'text-yellow-600',
@@ -166,8 +163,10 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {statsCards.map((stat, index) => {
         const Icon = stat.icon;
+        const progressWidth = stat.rawVal > 0 ? Math.min(stat.rawVal * 10, 100) : 0;
+        
         return (
-          <Card key={index} className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 group">
+          <Card key={index} className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 group cursor-pointer" style={{ cursor: 'pointer' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-700">{stat.title}</CardTitle>
               <div className={`h-10 w-10 rounded-xl bg-gradient-to-r ${
@@ -195,7 +194,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
                     stat.color.includes('orange') ? 'from-orange-500 to-orange-600' :
                     'from-yellow-500 to-yellow-600'
                   } transition-all duration-1000`}
-                  style={{ width: `${Math.min((stat.value as number) * 10, 100)}%` }}
+                  style={{ width: `${progressWidth}%` }}
                 ></div>
               </div>
             </CardContent>

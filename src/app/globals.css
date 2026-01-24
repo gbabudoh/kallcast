@@ -55,7 +55,7 @@
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
+  --muted: gainsboro;
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
@@ -124,7 +124,8 @@
 @layer utilities {
   /* Custom animations */
   @keyframes gradient {
-    0%, 100% {
+    0%,
+    100% {
       background-size: 200% 200%;
       background-position: left center;
     }
@@ -135,7 +136,8 @@
   }
 
   @keyframes float {
-    0%, 100% {
+    0%,
+    100% {
       transform: translateY(0px);
     }
     50% {
@@ -263,7 +265,8 @@
 
   /* Video-specific animations */
   @keyframes videoGlow {
-    0%, 100% {
+    0%,
+    100% {
       box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
     }
     50% {
@@ -272,7 +275,8 @@
   }
 
   @keyframes bounce-slow {
-    0%, 100% {
+    0%,
+    100% {
       transform: translateY(0);
     }
     50% {
@@ -281,7 +285,8 @@
   }
 
   @keyframes wiggle {
-    0%, 7% {
+    0%,
+    7% {
       transform: rotateZ(0);
     }
     15% {
@@ -299,7 +304,8 @@
     35% {
       transform: rotateZ(-4deg);
     }
-    40%, 100% {
+    40%,
+    100% {
       transform: rotateZ(0);
     }
   }
@@ -326,14 +332,21 @@
   }
 
   .animate-shimmer {
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.4),
+      transparent
+    );
     background-size: 200% 100%;
     animation: shimmer 2s infinite;
   }
 
   /* Hover effects */
   .hover-lift {
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition:
+      transform 0.3s ease,
+      box-shadow 0.3s ease;
   }
 
   .hover-lift:hover {

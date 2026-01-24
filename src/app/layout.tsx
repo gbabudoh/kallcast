@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { Toaster } from "@/components/ui/sonner";
-import { SessionProvider } from "next-auth/react";
+import Providers from "@/components/providers/Providers";
+import { initializeBuckets } from "@/lib/minio";
 import "./globals.css";
+
+// Initialize MinIO buckets
+initializeBuckets().catch(console.error);
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,7 +29,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/icon',
+        url: '/favicon.png',
         sizes: '32x32',
         type: 'image/png',
       },
@@ -59,17 +64,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <script src="https://unpkg.com/@daily-co/daily-js@latest/dist/daily-iframe.js" />
+        <Script src="https://unpkg.com/@daily-co/daily-js@latest/dist/daily-iframe.js" strategy="beforeInteractive" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#3B82F6" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-            <SessionProvider>
+            <Providers>
               {children}
               <Toaster />
-            </SessionProvider>
+            </Providers>
       </body>
     </html>
   );

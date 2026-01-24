@@ -3,7 +3,6 @@ import { auth } from '@/lib/auth';
 import connectDB from '@/lib/db';
 import Booking from '@/models/Booking';
 import Slot from '@/models/Slot';
-import User from '@/models/User';
 import { createBookingSchema } from '@/validations/booking';
 
 export async function GET(request: NextRequest) {
@@ -19,7 +18,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || 'all'; // all, upcoming, completed, cancelled
     const role = searchParams.get('role') || 'learner'; // learner, coach
 
-    let query: any = {};
+    const query: Record<string, unknown> = {};
 
     if (role === 'learner') {
       query.learnerId = session.user.id;
@@ -40,7 +39,7 @@ export async function GET(request: NextRequest) {
     const bookings = await Booking.find(query)
       .populate('slotId', 'title description duration category')
       .populate('coachId', 'firstName lastName profileImage')
-      .populate('learnerId', 'firstName lastName profileImage')
+      .populate('learnerId', 'firstName lastName profileImage email')
       .sort({ scheduledFor: -1 });
 
     return NextResponse.json({ bookings });
@@ -79,7 +78,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { slotId, paymentMethodId } = validationResult.data;
+    const { slotId } = validationResult.data;
 
     // Get slot details
     const slot = await Slot.findById(slotId).populate('coachId');

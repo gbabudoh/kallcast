@@ -6,7 +6,7 @@ const baseSlotSchema = z.object({
   description: z.string().min(20, 'Description must be at least 20 characters'),
   price: z.number().min(10, 'Price must be at least $10'),
   duration: z.number().min(15, 'Duration must be at least 15 minutes').max(480, 'Duration cannot exceed 8 hours'),
-  maxParticipants: z.number().min(1, 'Must allow at least 1 participant').max(5, 'Cannot exceed 5 participants'),
+  maxParticipants: z.number().min(1, 'Must allow at least 1 participant').max(100, 'Cannot exceed 100 participants'),
   category: z.string().min(1, 'Category is required'),
   startTime: z.date(),
   endTime: z.date(),

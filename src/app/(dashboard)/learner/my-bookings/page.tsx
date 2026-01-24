@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -12,7 +12,6 @@ import {
   User, 
   Play,
   Star,
-  MapPin,
   CheckCircle,
   AlertCircle,
   XCircle,
@@ -24,11 +23,11 @@ import {
   Award,
   TrendingUp,
   BookOpen,
-  ArrowRight,
   Sparkles,
   Globe,
   MessageCircle
 } from 'lucide-react';
+import { ROUTES } from '@/constants/routes';
 
 const tabs = [
   { id: 'all', label: 'All Sessions', count: 8 },
@@ -376,7 +375,7 @@ export default function MyBookingsPage() {
                               <MessageCircle className="w-4 h-4 text-green-600 mr-2" />
                               <span className="text-sm font-medium text-green-800">Your Feedback</span>
                             </div>
-                            <p className="text-sm text-green-700 italic">"{booking.session.feedback}"</p>
+                            <p className="text-sm text-green-700 italic">&quot;{booking.session.feedback}&quot;</p>
                           </div>
                         )}
                       </div>
@@ -437,7 +436,7 @@ export default function MyBookingsPage() {
                   }
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Link href="/explore">
+                  <Link href={ROUTES.LEARNER.EXPLORE} className="cursor-pointer">
                     <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white cursor-pointer">
                       <Target className="w-4 h-4 mr-2" />
                       Explore Coaches
@@ -464,7 +463,7 @@ export default function MyBookingsPage() {
                 Keep Learning & Growing
               </h3>
               <p className="text-blue-100 mb-4">
-                You're doing great! Continue your learning streak and unlock new achievements.
+                You&apos;re doing great! Continue your learning streak and unlock new achievements.
               </p>
               <div className="flex items-center space-x-6 text-sm">
                 <div className="flex items-center">
@@ -478,7 +477,7 @@ export default function MyBookingsPage() {
               </div>
             </div>
             <div className="flex space-x-3">
-              <Link href="/explore">
+              <Link href={ROUTES.LEARNER.EXPLORE} className="cursor-pointer">
                 <Button className="bg-white text-indigo-600 hover:bg-gray-100 font-medium cursor-pointer">
                   <Play className="w-4 h-4 mr-2" />
                   Book Next Session
