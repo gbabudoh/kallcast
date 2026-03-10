@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import storageService from '@/lib/services/storage.service';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import Booking from '@/models/Booking';
+import prisma from '@/lib/db';
 
 export async function POST(
   request: NextRequest,
@@ -32,10 +31,12 @@ export async function POST(
       file.name
     );
 
-    // Update booking in database
-    await connectDB();
-    await Booking.findByIdAndUpdate(sessionId, {
-      videoRoomUrl: result.url // or a specialized field if added
+    // Update booking in database using Prisma
+    await prisma.booking.update({
+      where: { id: sessionId },
+      data: {
+        videoRoomUrl: result.url // or a specialized field if added
+      }
     });
 
     return NextResponse.json({

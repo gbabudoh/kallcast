@@ -1,5 +1,5 @@
 export interface Session {
-  _id: string;
+  id: string;
   bookingId: string;
   videoRoomId: string;
   

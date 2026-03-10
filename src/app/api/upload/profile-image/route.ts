@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import storageService from '@/lib/services/storage.service';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import User from '@/models/User';
+import prisma from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,10 +28,12 @@ export async function POST(request: NextRequest) {
       file.name
     );
 
-    // Update user profile in database
-    await connectDB();
-    await User.findByIdAndUpdate(session.user.id, {
-      profileImage: result.url
+    // Update user profile in database using Prisma
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        profileImage: result.url
+      }
     });
 
     return NextResponse.json({

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +19,28 @@ import {
 } from 'lucide-react';
 import { format, isToday, isTomorrow, differenceInMinutes } from 'date-fns';
 import { BookingWithDetails } from '@/types/booking';
+import { Slot } from '@/types/slot';
 import { ROUTES } from '@/constants/routes';
+
+interface UnifiedSession {
+  id: string;
+  type: 'booking' | 'slot';
+  title: string;
+  startTime: string | Date;
+  endTime?: string | Date;
+  duration?: number;
+  category?: string;
+  status: string;
+  otherUser?: {
+    firstName: string;
+    lastName: string;
+    profileImage?: string;
+  };
+  capacity?: {
+    current: number;
+    max: number;
+  };
+}
 
 interface UpcomingSessionsProps {
   userRole: 'learner' | 'coach';
@@ -26,42 +48,73 @@ interface UpcomingSessionsProps {
 }
 
 export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessionsProps) {
-  const [sessions, setSessions] = useState<BookingWithDetails[]>([]);
+  const [sessions, setSessions] = useState<UnifiedSession[]>([]);
   const [hasTimedOut, setHasTimedOut] = useState(false);
+  const { data: sessionData } = useSession();
   const router = useRouter();
 
-  const fetchUpcomingSessions = useCallback(async () => {
-    const response = await fetch(`/api/bookings?role=${userRole}&type=upcoming`, {
+  const fetchData = useCallback(async () => {
+    // Fetch bookings
+    const bookingsRes = await fetch(`/api/bookings?role=${userRole}&type=upcoming`, {
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
     });
-    if (!response.ok) {
-      throw new Error('Failed to fetch upcoming sessions');
-    }
-    return response.json();
-  }, [userRole]);
+    
+    if (!bookingsRes.ok) throw new Error('Failed to fetch bookings');
+    const bookingsData = await bookingsRes.ok ? await bookingsRes.json() : { bookings: [] };
 
-  const { data: bookingsData, loading: isLoading, error, refetch } = useApi(fetchUpcomingSessions, { immediate: true, onError: () => {
-    // Don't show toast for this error, just handle it silently
-  }});
+    let slots: Slot[] = [];
+    if (userRole === 'coach' && sessionData?.user?.id) {
+      const slotsRes = await fetch(`/api/slots?coachId=${sessionData.user.id}`, {
+        credentials: 'include',
+      });
+      if (slotsRes.ok) {
+        const data = await slotsRes.json();
+        slots = data.slots || [];
+      }
+    }
+
+    // Process and merge
+    const processedBookings: UnifiedSession[] = (bookingsData.bookings || []).map((b: BookingWithDetails) => ({
+      id: b.id,
+      type: 'booking',
+      title: b.slot?.title || 'Session',
+      startTime: b.scheduledFor,
+      duration: b.slot?.duration,
+      category: b.slot?.category,
+      status: b.sessionStatus,
+      otherUser: userRole === 'learner' ? b.coach : b.learner
+    }));
+
+    const processedSlots: UnifiedSession[] = slots
+      .filter(s => s.status === 'available')
+      .map(s => ({
+        id: s.id,
+        type: 'slot',
+        title: s.title,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        duration: s.duration,
+        category: s.category,
+        status: 'available',
+        capacity: {
+          current: s.currentParticipants,
+          max: s.maxParticipants
+        }
+      }));
+
+    return [...processedBookings, ...processedSlots]
+      .filter(s => new Date(s.startTime) > new Date())
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+      .slice(0, limit);
+  }, [userRole, sessionData?.user?.id, limit]);
+
+  const { data: unifiedData, loading: isLoading, error, refetch } = useApi(fetchData, { immediate: true });
 
   useEffect(() => {
-    if (bookingsData) {
-      const upcomingSessions = (bookingsData.bookings || [])
-        .filter((booking: BookingWithDetails) => 
-          booking.sessionStatus === 'scheduled' && 
-          new Date(booking.scheduledFor) > new Date()
-        )
-        .sort((a: BookingWithDetails, b: BookingWithDetails) => 
-          new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime()
-        )
-        .slice(0, limit);
-      
-      setSessions(upcomingSessions);
+    if (unifiedData) {
+      setSessions(unifiedData);
     }
-  }, [bookingsData, userRole, limit]);
+  }, [unifiedData]);
 
   // Add timeout to prevent infinite loading
   useEffect(() => {
@@ -126,7 +179,7 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
   }
 
   // If there's an error or no data, show empty state
-  if (error || !bookingsData) {
+  if (error || (!isLoading && sessions.length === 0)) {
     return (
       <Card>
         <CardHeader>
@@ -147,7 +200,7 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
             <p className="text-gray-600 mb-4">
               {userRole === 'learner' 
                 ? "You don't have any upcoming learning sessions. Browse coaches to book your next session."
-                : "You don't have any upcoming coaching sessions. Create session slots to start teaching."
+                : "You don't have any upcoming coaching sessions or open slots. Create session slots to start teaching."
               }
             </p>
             <Button
@@ -225,70 +278,92 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
         {sessions.length > 0 ? (
           <div className="space-y-4">
             {sessions.map((session) => {
-              const otherUser = userRole === 'learner' ? session.coach : session.learner;
-              const sessionDate = new Date(session.scheduledFor);
-              const canJoin = canJoinSession(session.scheduledFor);
+              const sessionDate = new Date(session.startTime);
+              const canJoin = session.type === 'booking' && canJoinSession(session.startTime);
               
               return (
-                <div key={session._id} className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                  <Avatar className="h-12 w-12 cursor-pointer">
-                    <AvatarImage src={otherUser?.profileImage} alt={`${otherUser?.firstName} ${otherUser?.lastName}`} className="cursor-pointer" />
-                    <AvatarFallback className="bg-muted border border-muted flex items-center justify-center cursor-pointer">
-                      <GraduationCap className="h-6 w-6 text-slate-600 cursor-pointer" />
-                    </AvatarFallback>
-                  </Avatar>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <h4 className="font-medium truncate">{session.slot?.title || 'Session'}</h4>
-                      <Badge variant="outline" className="text-xs cursor-pointer">
-                        {session.slot?.category || 'General'}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 truncate">
-                      {userRole === 'learner' ? 'with' : 'with'} {otherUser?.firstName} {otherUser?.lastName}
-                    </p>
-                    <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
-                      <div className="flex items-center space-x-1 cursor-pointer">
-                        <Calendar className="h-3 w-3 cursor-pointer" />
-                        <span className="cursor-pointer">{getDateLabel(sessionDate)}</span>
+                <div key={session.id} className="flex items-center space-x-4 p-4 border rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="flex-1 min-w-0 flex items-center space-x-4">
+                    {session.type === 'booking' ? (
+                      <Avatar className="h-12 w-12">
+                        <AvatarImage src={session.otherUser?.profileImage} alt={session.otherUser?.firstName} />
+                        <AvatarFallback className="bg-muted">
+                          <GraduationCap className="h-6 w-6 text-slate-600" />
+                        </AvatarFallback>
+                      </Avatar>
+                    ) : (
+                      <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                        <Video className="h-6 w-6 text-blue-600" />
                       </div>
-                      <div className="flex items-center space-x-1 cursor-pointer">
-                        <Clock className="h-3 w-3 cursor-pointer" />
-                        <span className="cursor-pointer">{format(sessionDate, 'h:mm a')}</span>
+                    )}
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h4 className="font-medium truncate">{session.title}</h4>
+                        <Badge variant={session.type === 'booking' ? 'outline' : 'default'} className={`text-[9px] font-black uppercase tracking-widest ${
+                          session.type === 'slot' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' : ''
+                        }`}>
+                          {session.type === 'slot' ? 'Available' : (session.category || 'Mentorship')}
+                        </Badge>
                       </div>
-                      {session.slot?.duration && (
+                      <p className="text-sm text-gray-600 truncate">
+                        {session.type === 'booking' 
+                          ? `With ${session.otherUser?.firstName} ${session.otherUser?.lastName}`
+                          : `${session.capacity?.current} / ${session.capacity?.max} Seats remaining`
+                        }
+                      </p>
+                      <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
                         <div className="flex items-center space-x-1">
-                          <span>{session.slot.duration} min</span>
+                          <Calendar className="h-3 w-3" />
+                          <span>{getDateLabel(sessionDate)}</span>
                         </div>
-                      )}
+                        <div className="flex items-center space-x-1">
+                          <Clock className="h-3 w-3" />
+                          <span>{format(sessionDate, 'h:mm a')}</span>
+                        </div>
+                        {session.duration && (
+                          <div className="flex items-center space-x-1">
+                            <span>{session.duration} min</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
                   <div className="flex flex-col items-end space-y-2">
                     <Badge 
-                      variant={canJoin ? "default" : "secondary"}
-                      className={canJoin ? "bg-green-100 text-green-800 cursor-pointer" : "cursor-default"}
+                      variant={(canJoin || session.type === 'slot') ? "default" : "secondary"}
+                      className={(canJoin || session.type === 'slot') ? "bg-green-50 text-green-700 border-green-100" : "cursor-default"}
                     >
-                      {getTimeUntilSession(session.scheduledFor)}
+                      {getTimeUntilSession(session.startTime)}
                     </Badge>
                     
-                    {canJoin ? (
+                    {session.type === 'booking' ? (
+                      canJoin ? (
+                        <Button 
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700 cursor-pointer shadow-lg shadow-blue-100"
+                          onClick={() => {
+                            router.push(ROUTES.SESSION.ROOM(session.id));
+                          }}
+                        >
+                          <Video className="h-4 w-4 mr-2" />
+                          Join Live
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" disabled className="opacity-50">
+                          <Clock className="h-4 w-4 mr-2" />
+                          Waiting
+                        </Button>
+                      )
+                    ) : (
                       <Button 
                         size="sm"
-                        className="bg-green-600 hover:bg-green-700 cursor-pointer"
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => {
-                          router.push(ROUTES.SESSION.ROOM(session._id));
-                        }}
+                        variant="outline"
+                        className="hover:bg-blue-50 hover:text-blue-600 border-blue-100"
+                        onClick={() => router.push(ROUTES.COACH.MY_SESSIONS)}
                       >
-                        <Video className="h-4 w-4 mr-2" />
-                        Join Session
-                      </Button>
-                    ) : (
-                      <Button size="sm" variant="outline" disabled>
-                        <Clock className="h-4 w-4 mr-2" />
-                        Not Ready
+                        Manage Slot
                       </Button>
                     )}
                   </div>
@@ -321,7 +396,7 @@ export default function UpcomingSessions({ userRole, limit = 5 }: UpcomingSessio
             <p className="text-gray-600 mb-4">
               {userRole === 'learner' 
                 ? "You don't have any upcoming learning sessions. Browse coaches to book your next session."
-                : "You don't have any upcoming coaching sessions. Create session slots to start teaching."
+                : "You don't have any upcoming coaching sessions or open slots. Create session slots to start teaching."
               }
             </p>
             <Button

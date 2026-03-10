@@ -29,11 +29,12 @@ export const APP_CONFIG = {
   },
   
   // Session Configuration
+  // Note: These are fallback defaults. The actual limit is determined by the specific Slot.
   SESSION: {
     MAX_PARTICIPANTS: {
-      DEFAULT: 5,
-      COACH_OWNED: 5,
-      LEARNER_VIEW: 4,
+      DEFAULT: 100,
+      COACH_OWNED: 100,
+      LEARNER_VIEW: 99,
     },
     DEFAULT_DURATION: 60, // minutes
     MIN_DURATION: 15, // minutes
@@ -42,7 +43,7 @@ export const APP_CONFIG = {
   
   // Video Configuration
   VIDEO: {
-    MAX_PARTICIPANTS: 5,
+    MAX_PARTICIPANTS: 1000,
     ENABLE_RECORDING: true,
     ENABLE_CHAT: true,
     ENABLE_SCREEN_SHARING: true,

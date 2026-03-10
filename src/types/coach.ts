@@ -14,25 +14,25 @@ export interface Coach extends User {
 }
 
 export interface CoachProfile {
-  _id: string;
+  id: string;
   firstName: string;
   lastName: string;
-  profileImage?: string;
-  bio?: string;
+  profileImage: string | null;
+  bio: string | null;
   expertise: string[];
-  yearsExperience: number;
-  hourlyRate: number;
+  yearsExperience: number | null;
+  hourlyRate: number | null;
   averageRating: number;
   totalSessions: number;
   isVerified: boolean;
-  title?: string;
-  company?: string;
-  location?: string;
-  responseTime?: number;
-  background?: string;
-  specialties?: string[];
-  sessionTitle?: string;
-  sessionGains?: string[];
+  title: string | null;
+  company: string | null;
+  location: string | null;
+  responseTime: number | null;
+  background: string | null;
+  specialties: string[] | null;
+  sessionTitle: string | null;
+  sessionGains: string[];
   coachAchievements?: {
     title: string;
     description?: string;

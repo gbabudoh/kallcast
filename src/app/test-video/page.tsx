@@ -16,7 +16,7 @@ export default function VideoTestPage() {
     sessionId: 'test-room-123',
     bookingId: 'booking-abc',
     displayName: 'Test User',
-    sessionTitle: 'Jitsi Integration Test',
+    sessionTitle: 'LiveKit Integration Test',
     startTime: new Date(),
     durationMinutes: 60,
   };
@@ -74,7 +74,7 @@ export default function VideoTestPage() {
                 <div className="w-2 h-2 rounded-full bg-green-500"></div>
               </div>
               <p className="text-sm text-slate-600 font-medium leading-relaxed">
-                Connects to <code className="bg-slate-100 px-1 rounded text-blue-600">jitsi.feendesk.com</code>
+                Connects to LiveKit Cloud at <code className="bg-slate-100 px-1 rounded text-blue-600">livekit.feendesk.com</code>
               </p>
             </div>
             <div className="flex items-start space-x-3">

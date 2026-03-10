@@ -1,34 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import connectDB from '@/lib/db';
-import User from '@/models/User';
+import prisma from '@/lib/db';
+import type { Role } from '@/generated/client';
 import { registerSchema, registerCoachSchema } from '@/validations/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    // await prisma.$connect(); // Optional, prisma handles connection
     
     const body = await request.json();
     const { role } = body;
 
-    // Validate based on role
-    const schema = role === 'coach' ? registerCoachSchema : registerSchema;
-    const validationResult = schema.safeParse(body);
-
-    if (!validationResult.success) {
+    // Use base register schema first to check common fields
+    const baseValidation = registerSchema.safeParse(body);
+    if (!baseValidation.success) {
       return NextResponse.json(
         { 
           message: 'Validation failed', 
-          errors: validationResult.error.issues 
+          errors: baseValidation.error.issues 
         },
         { status: 400 }
       );
     }
 
-    const data = validationResult.data;
+    const data = baseValidation.data;
+
+    // If it's a coach registration and has additional fields, validate them
+    const hasCoachFields = 'bio' in body || 'expertise' in body || 'hourlyRate' in body;
+    if (role === 'coach' && hasCoachFields) {
+      const coachValidation = registerCoachSchema.safeParse(body);
+      if (!coachValidation.success) {
+        return NextResponse.json(
+          { 
+            message: 'Coach profile validation failed', 
+            errors: coachValidation.error.issues 
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email: data.email });
+    const existingUser = await prisma.user.findUnique({ 
+      where: { email: data.email } 
+    });
     if (existingUser) {
       return NextResponse.json(
         { message: 'User with this email already exists' },
@@ -40,31 +55,29 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(data.password, 12);
 
     // Create user
-    const userData: any = {
-      email: data.email,
-      password: hashedPassword,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      role: data.role,
-      timezone: data.timezone,
-    };
-
-    // Add coach-specific fields
-    if (data.role === 'coach') {
-      const coachData = data as any; // Type assertion for coach-specific fields
-      userData.bio = coachData.bio;
-      userData.expertise = coachData.expertise;
-      userData.yearsExperience = coachData.yearsExperience;
-      userData.hourlyRate = coachData.hourlyRate;
-      userData.isVerified = false;
-      userData.stripeOnboardingComplete = false;
-    }
-
-    const user = new User(userData);
-    await user.save();
+    const user = await prisma.user.create({
+      data: {
+        email: data.email,
+        password: hashedPassword,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        role: data.role as Role,
+        timezone: data.timezone,
+        ...(data.role === 'coach' ? {
+          bio: 'bio' in body ? body.bio as string : undefined,
+          expertise: 'expertise' in body ? (body.expertise as string[]) : [],
+          yearsExperience: 'yearsExperience' in body ? body.yearsExperience as number : undefined,
+          hourlyRate: 'hourlyRate' in body ? body.hourlyRate as number : undefined,
+          isVerified: false,
+          stripeOnboardingComplete: false,
+        } : {})
+      }
+    });
 
     // Return user without password
-    const { password, ...userWithoutPassword } = user.toObject();
+    const userWithoutPassword = { ...user };
+    // @ts-expect-error - password exists on user model but not on ReturnType
+    delete userWithoutPassword.password;
 
     return NextResponse.json(
       { 

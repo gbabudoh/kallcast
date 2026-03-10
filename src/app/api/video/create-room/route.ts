@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import Booking from '@/models/Booking';
-import { createRoom } from '@/lib/daily';
+import { SessionStatus } from '@/generated/client';
+import prisma from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,8 +10,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-    
     const { bookingId } = await request.json();
 
     if (!bookingId) {
@@ -20,24 +17,28 @@ export async function POST(request: NextRequest) {
     }
 
     // Get booking details
-    const booking = await Booking.findById(bookingId)
-      .populate('slotId')
-      .populate('coachId')
-      .populate('learnerId');
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        slot: true,
+        coach: true,
+        learner: true,
+      }
+    });
 
     if (!booking) {
       return NextResponse.json({ message: 'Booking not found' }, { status: 404 });
     }
 
     // Check if user has access to this booking
-    if (booking.learnerId._id.toString() !== session.user.id && 
-        booking.coachId._id.toString() !== session.user.id) {
+    if (booking.learnerId !== session.user.id && 
+        booking.coachId !== session.user.id) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     // Check if booking is scheduled and ready
-    if (booking.sessionStatus !== 'scheduled') {
-      return NextResponse.json({ message: 'Booking is not scheduled' }, { status: 400 });
+    if (booking.sessionStatus !== SessionStatus.scheduled && booking.sessionStatus !== SessionStatus.in_progress) {
+      return NextResponse.json({ message: 'Booking is not scheduled or in progress' }, { status: 400 });
     }
 
     // Check if it's time for the session (allow 15 minutes early)
@@ -54,36 +55,39 @@ export async function POST(request: NextRequest) {
 
     // Create or get existing room
     let room;
-    if (booking.videoRoomId) {
+    if (booking.videoRoomId && booking.videoRoomId !== 'pending') {
       // Room already exists, just return the details
       room = {
         id: booking.videoRoomId,
         url: booking.videoRoomUrl,
       };
     } else {
-      // Create new room
-      room = await createRoom({
-        name: `session-${booking._id}`,
-        maxParticipants: booking.slotId.maxParticipants,
-        startTime: sessionStart,
-        endTime: new Date(sessionStart.getTime() + booking.slotId.duration * 60 * 1000),
-        enableRecording: true,
-        enableChat: true,
-        enableScreenshare: true,
-      });
+      // For LiveKit, the room name IS the ID. 
+      // We use a prefix to avoid collisions.
+      const roomName = `kallcast-${booking.id}`;
+      const roomUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || '';
+
+      room = {
+        id: roomName,
+        url: roomUrl,
+      };
 
       // Update booking with room details
-      booking.videoRoomUrl = room.url;
-      booking.videoRoomId = room.id;
-      booking.sessionStatus = 'in-progress';
-      await booking.save();
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          videoRoomUrl: roomUrl,
+          videoRoomId: roomName,
+          sessionStatus: SessionStatus.in_progress,
+        }
+      });
     }
 
     return NextResponse.json({ 
       room,
       booking: {
-        id: booking._id,
-        status: booking.sessionStatus,
+        id: booking.id,
+        status: SessionStatus.in_progress,
         scheduledFor: booking.scheduledFor,
       }
     });

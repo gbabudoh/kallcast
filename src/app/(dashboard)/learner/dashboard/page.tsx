@@ -282,7 +282,7 @@ export default function LearnerDashboardPage() {
             ) : recommendedCoaches.length > 0 ? (
               <div className="space-y-4">
                 {recommendedCoaches.slice(0, 3).map((coach, index) => (
-                  <div key={index} className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/60 transition-colors cursor-pointer" onClick={() => router.push(`/coach/${coach._id}`)}>
+                  <div key={index} className="flex items-center space-x-4 p-3 rounded-lg hover:bg-white/60 transition-colors cursor-pointer" onClick={() => router.push(`/coach/${coach.id}`)}>
                     <Avatar className="w-12 h-12">
                       <AvatarImage src={coach.profileImage} />
                       <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold">

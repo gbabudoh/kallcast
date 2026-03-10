@@ -1,34 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import Review from '@/models/Review';
-import Booking from '@/models/Booking';
-import User from '@/models/User';
+import { SessionStatus, Prisma } from '@/generated/client';
+import prisma from '@/lib/db';
 import { createReviewSchema } from '@/validations/review';
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-    
     const { searchParams } = new URL(request.url);
     const coachId = searchParams.get('coachId');
     const bookingId = searchParams.get('bookingId');
 
-    let query: any = {};
+    const where: Prisma.ReviewWhereInput = {};
 
     if (coachId) {
-      query.coachId = coachId;
+      where.coachId = coachId;
     }
 
     if (bookingId) {
-      query.bookingId = bookingId;
+      where.bookingId = bookingId;
     }
 
-    const reviews = await Review.find(query)
-      .populate('coachId', 'firstName lastName profileImage')
-      .populate('learnerId', 'firstName lastName profileImage')
-      .populate('bookingId', 'scheduledFor slotId')
-      .sort({ createdAt: -1 });
+    const reviews = await prisma.review.findMany({
+      where,
+      include: {
+        coach: {
+          select: { firstName: true, lastName: true, profileImage: true }
+        },
+        learner: {
+          select: { firstName: true, lastName: true, profileImage: true }
+        },
+        booking: {
+          select: { scheduledFor: true, slotId: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
 
     return NextResponse.json({ reviews });
   } catch (error) {
@@ -51,8 +57,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    await connectDB();
-    
     const body = await request.json();
     const validationResult = createReviewSchema.safeParse(body);
 
@@ -69,58 +73,80 @@ export async function POST(request: NextRequest) {
     const { bookingId, rating, comment } = validationResult.data;
 
     // Check if booking exists and belongs to user
-    const booking = await Booking.findById(bookingId);
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId }
+    });
+    
     if (!booking) {
       return NextResponse.json({ message: 'Booking not found' }, { status: 404 });
     }
 
-    if (booking.learnerId.toString() !== session.user.id) {
+    if (booking.learnerId !== session.user.id) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     // Check if booking is completed
-    if (booking.sessionStatus !== 'completed') {
+    if (booking.sessionStatus !== SessionStatus.completed) {
       return NextResponse.json({ message: 'Can only review completed sessions' }, { status: 400 });
     }
 
     // Check if review already exists
-    const existingReview = await Review.findOne({ bookingId });
+    const existingReview = await prisma.review.findUnique({
+      where: { bookingId }
+    });
     if (existingReview) {
       return NextResponse.json({ message: 'Review already exists for this booking' }, { status: 400 });
     }
 
-    // Create review
-    const review = new Review({
-      bookingId,
-      coachId: booking.coachId,
-      learnerId: session.user.id,
-      rating,
-      comment,
-    });
+    // Create review and update booking in a transaction
+    const review = await prisma.$transaction(async (tx) => {
+      const newReview = await tx.review.create({
+        data: {
+          bookingId,
+          coachId: booking.coachId,
+          learnerId: session.user.id,
+          rating,
+          comment,
+        },
+        include: {
+          coach: { select: { firstName: true, lastName: true, profileImage: true } },
+          learner: { select: { firstName: true, lastName: true, profileImage: true } },
+          booking: { select: { scheduledFor: true } }
+        }
+      });
 
-    await review.save();
+      // Update booking to mark as reviewed
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          isReviewed: true,
+          reviewId: newReview.id,
+          rating: rating,
+          feedback: comment
+        }
+      });
 
-    // Update booking to mark as reviewed
-    booking.isReviewed = true;
-    booking.reviewId = review._id;
-    await booking.save();
+      // Update coach's average rating
+      const coachReviews = await tx.review.findMany({
+        where: { coachId: booking.coachId }
+      });
+      const allRatings = [...coachReviews.map(r => r.rating), rating];
+      const averageRating = allRatings.reduce((sum, r) => sum + r, 0) / allRatings.length;
+      
+      await tx.user.update({
+        where: { id: booking.coachId },
+        data: {
+          averageRating: Math.round(averageRating * 10) / 10,
+        }
+      });
 
-    // Update coach's average rating
-    const coachReviews = await Review.find({ coachId: booking.coachId });
-    const averageRating = coachReviews.reduce((sum, r) => sum + r.rating, 0) / coachReviews.length;
-    
-    await User.findByIdAndUpdate(booking.coachId, {
-      averageRating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
+      return newReview;
     });
 
     return NextResponse.json(
       { 
         message: 'Review created successfully', 
-        review: await review.populate([
-          { path: 'coachId', select: 'firstName lastName profileImage' },
-          { path: 'learnerId', select: 'firstName lastName profileImage' },
-          { path: 'bookingId', select: 'scheduledFor' }
-        ])
+        review
       },
       { status: 201 }
     );

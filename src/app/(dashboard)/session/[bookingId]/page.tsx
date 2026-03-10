@@ -9,19 +9,19 @@ import SessionLobby from '@/components/session/SessionLobby';
 import SessionComplete from '@/components/session/SessionComplete';
 
 interface BookingData {
-  _id: string;
+  id: string;
   slotId: {
     title: string;
     duration: number;
   };
   coachId: {
-    _id: string;
+    id: string;
     firstName: string;
     lastName: string;
     profileImage?: string;
   };
   learnerId: {
-    _id: string;
+    id: string;
     firstName: string;
     lastName: string;
     profileImage?: string;
@@ -44,7 +44,7 @@ export default function SessionPage({ params }: { params: Promise<{ bookingId: s
   const [phase, setPhase] = useState<SessionPhase>('lobby');
   const [error, setError] = useState<string | null>(null);
 
-  const isCoach = session?.user?.id === booking?.coachId._id;
+  const isCoach = session?.user?.id === booking?.coachId.id;
 
   // Fetch booking data
   useEffect(() => {
@@ -172,7 +172,7 @@ export default function SessionPage({ params }: { params: Promise<{ bookingId: s
     return (
       <div className="min-h-screen bg-slate-900 p-4">
         <VideoRoom
-          sessionId={booking._id}
+          sessionId={booking.id}
           bookingId={bookingId}
           displayName={displayName}
           email={session?.user?.email || undefined}

@@ -5,117 +5,130 @@ import { getToken } from 'next-auth/jwt';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Legacy Redirects - Move to top for priority
+  // Get token from cookie first
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  const isLoggedIn = !!token;
+  const userRole = token?.role as string;
+
+  // ============================================
+  // COACH LOCKDOWN - Coaches stay in coach area
+  // ============================================
+  if (isLoggedIn && userRole === 'coach') {
+    // Allowed routes for coaches
+    const allowedCoachPaths = [
+      '/coach',
+      '/session',
+      '/settings',
+    ];
+    
+    const isAllowedPath = allowedCoachPaths.some(path => pathname.startsWith(path));
+    
+    // If coach tries to access anything outside their allowed area, redirect to coach dashboard
+    if (!isAllowedPath) {
+      return NextResponse.redirect(new URL('/coach/dashboard', request.url));
+    }
+  }
+
+  // ============================================
+  // Legacy Redirects
+  // ============================================
   if (pathname === '/dashboard/learner' || pathname === '/dashboard/coach') {
     const target = pathname.includes('learner') ? '/learner/dashboard' : '/coach/dashboard';
     return NextResponse.redirect(new URL(target, request.url));
   }
   
   if (pathname === '/explore') {
+    if (isLoggedIn && userRole === 'coach') {
+      return NextResponse.redirect(new URL('/coach/dashboard', request.url));
+    }
     return NextResponse.redirect(new URL('/learner/explore', request.url));
   }
   
   if (pathname === '/my-bookings') {
+    if (!isLoggedIn) {
+      const redirectUrl = new URL('/login', request.url);
+      redirectUrl.searchParams.set('callbackUrl', '/learner/my-bookings');
+      return NextResponse.redirect(redirectUrl);
+    }
+    if (userRole === 'coach') {
+      return NextResponse.redirect(new URL('/coach/dashboard', request.url));
+    }
     return NextResponse.redirect(new URL('/learner/my-bookings', request.url));
   }
 
   if (pathname === '/students') {
+    if (!isLoggedIn) {
+      const redirectUrl = new URL('/login', request.url);
+      redirectUrl.searchParams.set('callbackUrl', '/coach/students');
+      return NextResponse.redirect(redirectUrl);
+    }
     return NextResponse.redirect(new URL('/coach/students', request.url));
   }
-  
-  // Get token from cookie
-  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
-  const isLoggedIn = !!token;
-  const userRole = token?.role as string;
 
-  // Legacy Coach Redirects
-  if (pathname === '/my-sessions' && userRole === 'coach') {
-    return NextResponse.redirect(new URL('/coach/my-sessions', request.url));
+  if (pathname === '/my-sessions') {
+    if (!isLoggedIn) {
+      const redirectUrl = new URL('/login', request.url);
+      redirectUrl.searchParams.set('callbackUrl', pathname);
+      return NextResponse.redirect(redirectUrl);
+    }
+    const target = userRole === 'coach' ? '/coach/my-sessions' : '/learner/my-sessions';
+    return NextResponse.redirect(new URL(target, request.url));
   }
 
-  if (pathname === '/earnings' && userRole === 'coach') {
-    return NextResponse.redirect(new URL('/coach/earnings', request.url));
+  if (pathname === '/earnings') {
+    if (!isLoggedIn) {
+      const redirectUrl = new URL('/login', request.url);
+      redirectUrl.searchParams.set('callbackUrl', pathname);
+      return NextResponse.redirect(redirectUrl);
+    }
+    if (userRole === 'coach') {
+      return NextResponse.redirect(new URL('/coach/earnings', request.url));
+    }
+    return NextResponse.redirect(new URL('/learner/dashboard', request.url));
   }
 
-  if (pathname === '/my-sessions' && userRole === 'learner') {
-    return NextResponse.redirect(new URL('/learner/my-sessions', request.url));
-  }
-
-  // Public routes that don't require authentication
-  const publicRoutes = [
-    '/login',
-    '/register',
-    '/pricing',
-    '/resources',
-    '/explain',
-    '/api/auth',
-  ];
-
-  // Public Access Logic
-  const isPublicRoute = (pathname === '/') || publicRoutes.some(route => 
+  // ============================================
+  // Public routes
+  // ============================================
+  const publicRoutes = ['/login', '/register', '/pricing', '/resources', '/explain'];
+  const isPublicRoute = pathname === '/' || publicRoutes.some(route => 
     pathname === route || pathname.startsWith(route)
   );
 
-  // If user is already logged in and trying to access landing/auth pages, redirect to dashboard
+  // Redirect logged-in users away from auth pages
   const authRoutes = ['/login', '/register', '/register-coach'];
   const isAuthRoute = authRoutes.some(route => pathname === route || pathname.startsWith(route));
-  const isHomePage = pathname === '/';
 
-  if (isLoggedIn && (isAuthRoute || isHomePage)) {
+  if (isLoggedIn && (isAuthRoute || pathname === '/')) {
     const dashboardUrl = userRole === 'coach' ? '/coach/dashboard' : '/learner/dashboard';
     return NextResponse.redirect(new URL(dashboardUrl, request.url));
   }
 
-  // If it's a public route, allow access
   if (isPublicRoute) {
     return NextResponse.next();
   }
 
-  // If user is not logged in and trying to access protected route
+  // ============================================
+  // Protected routes - require login
+  // ============================================
   if (!isLoggedIn) {
-    // Specific redirects for Coach features vs Learner/General features
-    const isLoginRequired = pathname.includes('/earnings') || pathname.includes('/my-sessions') || pathname.includes('/coach/dashboard');
-    const targetPath = isLoginRequired ? '/login' : '/register';
-    
-    const redirectUrl = new URL(targetPath, request.url);
+    const redirectUrl = new URL('/login', request.url);
     redirectUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
+  // ============================================
   // Role-based access control
-  // Coach-only routes
-  const coachRoutes = [
-    '/coach/dashboard',
-    '/coach/my-sessions',
-    '/coach/earnings',
-    '/coach/students',
-    '/api/coaches',
-    '/api/slots',
-  ];
-
-  const isCoachRoute = coachRoutes.some(route => 
-    pathname.startsWith(route)
-  );
-
-  if (isCoachRoute && userRole !== 'coach') {
+  // ============================================
+  
+  // Prevent learners from accessing coach routes
+  if (pathname.startsWith('/coach') && userRole !== 'coach') {
     return NextResponse.redirect(new URL('/learner/dashboard', request.url));
   }
 
-  // Learner-only routes
-  const learnerRoutes = [
-    '/learner/my-bookings',
-    '/learner/my-sessions',
-    '/learner/explore',
-    '/learner/dashboard',
-  ];
-
-  const isLearnerRoute = learnerRoutes.some(route => 
-    pathname.startsWith(route)
-  );
-
-  // Note: We allow coaches to access learner routes if they want to "Learn"
-  if (isLearnerRoute && userRole !== 'learner' && userRole !== 'coach') {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  // Prevent coaches from accessing learner routes (already handled above, but double-check)
+  if (pathname.startsWith('/learner') && userRole === 'coach') {
+    return NextResponse.redirect(new URL('/coach/dashboard', request.url));
   }
 
   return NextResponse.next();
@@ -123,14 +136,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes - IMPORTANT: don't block auth routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder assets
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

@@ -21,11 +21,11 @@ export default function CoachCard({ coach }: CoachCardProps) {
     e.preventDefault();
     e.stopPropagation();
     setIsLoading(true);
-    router.push(`/coach/${coach._id}#booking-section`);
+    router.push(`/coach/${coach.id}#booking-section`);
   };
 
   return (
-    <Link href={`/coach/${coach._id}`}>
+    <Link href={`/coach/${coach.id}`}>
       <Card className="group hover:shadow-2xl transition-all duration-300 border-slate-100 overflow-hidden bg-white flex flex-col h-full rounded-[1.5rem] shadow-sm">
         <CardContent className="p-0 flex flex-col h-full">
           {/* Main Focus: Session Title & Gains */}
@@ -52,7 +52,7 @@ export default function CoachCard({ coach }: CoachCardProps) {
             <div className="flex items-center space-x-3 mb-5">
               <div className="relative">
                 <Avatar className="h-9 w-9 ring-2 ring-slate-100">
-                  <AvatarImage src={coach.profileImage} alt={`${coach.firstName} ${coach.lastName}`} className="object-cover" />
+                  <AvatarImage src={coach.profileImage ?? undefined} alt={`${coach.firstName} ${coach.lastName}`} className="object-cover" />
                   <AvatarFallback className="bg-slate-200 text-slate-600 font-bold text-xs">
                     {coach.firstName[0]}{coach.lastName[0]}
                   </AvatarFallback>
@@ -64,7 +64,7 @@ export default function CoachCard({ coach }: CoachCardProps) {
                   {coach.firstName} {coach.lastName}
                 </div>
                 <div className="text-[9px] text-slate-500 font-black uppercase tracking-wider truncate">
-                  {coach.title} @ <span className="text-blue-600">{coach.company}</span>
+                  {coach.title || 'Expert Coach'} {coach.company && <>&nbsp;@ <span className="text-blue-600">{coach.company}</span></>}
                 </div>
               </div>
             </div>
@@ -85,7 +85,7 @@ export default function CoachCard({ coach }: CoachCardProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-[9px] text-slate-400 uppercase tracking-widest font-black mb-0.5">Rate</div>
-                  <div className="text-lg font-black text-slate-900">${coach.hourlyRate}<span className="text-[10px] text-slate-400 font-bold">/hr</span></div>
+                  <div className="text-lg font-black text-slate-900">${coach.hourlyRate || 0}<span className="text-[10px] text-slate-400 font-bold">/hr</span></div>
                 </div>
                 <div className="text-right">
                   <div className="text-[9px] text-slate-400 uppercase tracking-widest font-black mb-0.5">Availability</div>

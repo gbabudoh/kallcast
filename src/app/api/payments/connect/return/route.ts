@@ -1,10 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import User from '@/models/User';
+import prisma from '@/lib/db';
 import { getAccount } from '@/lib/stripe';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await auth();
     if (!session) {
@@ -15,9 +14,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    await connectDB();
-    
-    const user = await User.findById(session.user.id);
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id }
+    });
+
     if (!user || !user.stripeAccountId) {
       return NextResponse.json({ message: 'User or Stripe account not found' }, { status: 404 });
     }
@@ -25,13 +25,17 @@ export async function GET(request: NextRequest) {
     // Get account details from Stripe
     const account = await getAccount(user.stripeAccountId);
 
-    // Update user onboarding status
-    user.stripeOnboardingComplete = account.details_submitted && account.charges_enabled;
-    await user.save();
+    // Update user onboarding status using Prisma
+    const updatedUser = await prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        stripeOnboardingComplete: account.details_submitted && account.charges_enabled
+      }
+    });
 
     return NextResponse.json({ 
       account,
-      onboardingComplete: user.stripeOnboardingComplete 
+      onboardingComplete: updatedUser.stripeOnboardingComplete 
     });
   } catch (error) {
     console.error('Stripe return error:', error);

@@ -1,32 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import Booking from '@/models/Booking';
+import prisma from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { bookingId: string } }
+  { params }: { params: Promise<{ bookingId: string }> }
 ) {
+  const { bookingId } = await params;
   try {
     const session = await auth();
     if (!session) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-    
-    const booking = await Booking.findById(params.bookingId)
-      .populate('slotId', 'title description duration category')
-      .populate('coachId', 'firstName lastName profileImage')
-      .populate('learnerId', 'firstName lastName profileImage');
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        slot: { select: { title: true, description: true, duration: true, category: true } },
+        coach: { select: { id: true, firstName: true, lastName: true, profileImage: true } },
+        learner: { select: { id: true, firstName: true, lastName: true, profileImage: true } }
+      }
+    });
 
     if (!booking) {
       return NextResponse.json({ message: 'Booking not found' }, { status: 404 });
     }
 
     // Check if user has access to this booking
-    if (booking.learnerId._id.toString() !== session.user.id && 
-        booking.coachId._id.toString() !== session.user.id) {
+    if (booking.learnerId !== session.user.id && booking.coachId !== session.user.id) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 

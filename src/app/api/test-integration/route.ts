@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import Booking from '@/models/Booking';
-import Slot from '@/models/Slot';
+import prisma from '@/lib/db';
+import { SessionStatus, SlotStatus, PaymentStatus, EscrowStatus } from '@/generated/client';
 
 export async function POST() {
   try {
@@ -11,8 +10,6 @@ export async function POST() {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-
     // 1. Setup Test Data
     const coachId = session.user.id;
     const learnerId = session.user.id;
@@ -20,52 +17,64 @@ export async function POST() {
     const startTime = new Date(Date.now() + 3600000);
     const endTime = new Date(startTime.getTime() + duration * 60000);
 
-    const testSlot = await Slot.create({
-      coachId,
-      title: 'TEST INTEGRATION SESSION',
-      description: 'Verifying Jitsi + Stripe + Mattermost',
-      startTime,
-      endTime,
-      duration,
-      price: 50,
-      maxParticipants: 5,
-      category: 'Technology',
-      status: 'booked',
+    const testSlot = await prisma.slot.create({
+      data: {
+        coachId,
+        title: 'TEST INTEGRATION SESSION',
+        description: 'Verifying Jitsi + Stripe + Mattermost',
+        startTime,
+        endTime,
+        duration,
+        price: 50,
+        maxParticipants: 5,
+        category: 'Technology',
+        status: SlotStatus.booked,
+      }
     });
 
-    const testBooking = await Booking.create({
-      slotId: testSlot._id,
-      learnerId,
-      coachId,
-      amount: 50,
-      platformFee: 10,
-      stripeFee: 1.75,
-      coachPayout: 38.25,
-      paymentIntentId: 'pi_test_verification',
-      paymentStatus: 'authorized', // Escrowed
-      escrowStatus: 'authorized',
-      sessionStatus: 'scheduled',
-      videoRoomUrl: 'https://jitsi.feendesk.com/kallcast-test-room',
-      videoRoomId: 'test-room-id',
-      scheduledFor: testSlot.startTime,
+    const testBooking = await prisma.booking.create({
+      data: {
+        slotId: testSlot.id,
+        learnerId,
+        coachId,
+        amount: 50,
+        platformFee: 10,
+        stripeFee: 1.75,
+        coachPayout: 38.25,
+        paymentIntentId: 'pi_test_verification',
+        paymentStatus: PaymentStatus.authorized, // Escrowed
+        escrowStatus: EscrowStatus.authorized,
+        sessionStatus: SessionStatus.scheduled,
+        videoRoomUrl: 'https://jitsi.feendesk.com/kallcast-test-room',
+        videoRoomId: 'test-room-id',
+        scheduledFor: testSlot.startTime,
+      }
     });
 
     // 2. Simulate Video Session Start
-    testBooking.sessionStatus = 'in-progress';
-    testBooking.actualStartTime = new Date();
-    await testBooking.save();
+    await prisma.booking.update({
+      where: { id: testBooking.id },
+      data: {
+        sessionStatus: SessionStatus.in_progress,
+        actualStartTime: new Date(),
+      }
+    });
 
     // 3. Simulate Session Completion
-    testBooking.sessionStatus = 'pending_confirmation';
-    testBooking.actualEndTime = new Date();
-    await testBooking.save();
+    const finalizedBooking = await prisma.booking.update({
+      where: { id: testBooking.id },
+      data: {
+        sessionStatus: SessionStatus.pending_confirmation,
+        actualEndTime: new Date(),
+      }
+    });
 
     // 4. Return the test booking ID for manual confirmation test
     return NextResponse.json({
       message: 'Test booking created and advanced to pending_confirmation',
-      bookingId: testBooking._id,
+      bookingId: finalizedBooking.id,
       nextStep: 'Call /api/sessions/confirm with this bookingId to test payment release',
-      status: testBooking.sessionStatus,
+      status: finalizedBooking.sessionStatus,
     });
 
   } catch (error: unknown) {

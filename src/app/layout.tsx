@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import { Toaster } from "@/components/ui/sonner";
 import Providers from "@/components/providers/Providers";
 import { initializeBuckets } from "@/lib/minio";
@@ -64,7 +63,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <Script src="https://unpkg.com/@daily-co/daily-js@latest/dist/daily-iframe.js" strategy="beforeInteractive" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#3B82F6" />
       </head>

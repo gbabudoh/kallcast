@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import mongoose from 'mongoose';
-import Slot from '@/models/Slot';
+import prisma from '@/lib/db';
+import { SlotStatus } from '@/generated/client';
 import { updateSlotSchema } from '@/validations/coach';
 
 export async function GET(
@@ -11,38 +10,22 @@ export async function GET(
 ) {
   const { slotId } = await params;
   try {
-    await connectDB();
-    
-    let slot;
-    if (mongoose.Types.ObjectId.isValid(slotId)) {
-      slot = await Slot.findById(slotId)
-        .populate('coachId', 'firstName lastName profileImage hourlyRate averageRating bio expertise');
-    }
-
-    if (!slot && slotId.startsWith('mock-slot-')) {
-      // Return a mock slot for testing the booking flow
-      slot = {
-        _id: slotId,
-        title: 'Strategy & Leadership Acceleration Session',
-        price: 150,
-        duration: 60,
-        maxParticipants: 1,
-        currentParticipants: 0,
-        startTime: new Date(Date.now() + 86400000).toISOString(),
-        endTime: new Date(Date.now() + 90000000).toISOString(),
-        category: 'Product Strategy',
-        coachId: {
-          _id: '65af5656c5435016c6800101',
-          firstName: 'Sarah',
-          lastName: 'Johnson',
-          profileImage: undefined,
-          hourlyRate: 150,
-          averageRating: 4.9,
-          bio: 'Former Google PM with 8+ years building products used by millions.',
-          expertise: ['Product Strategy', 'Leadership', 'Agile']
+    const slot = await prisma.slot.findUnique({
+      where: { id: slotId },
+      include: {
+        coach: {
+          select: {
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            hourlyRate: true,
+            averageRating: true,
+            bio: true,
+            expertise: true,
+          }
         }
-      };
-    }
+      }
+    });
 
     if (!slot) {
       return NextResponse.json({ message: 'Slot not found' }, { status: 404 });
@@ -69,15 +52,16 @@ export async function PATCH(
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-    
-    const slot = await Slot.findById(slotId);
+    const slot = await prisma.slot.findUnique({
+      where: { id: slotId }
+    });
+
     if (!slot) {
       return NextResponse.json({ message: 'Slot not found' }, { status: 404 });
     }
 
     // Check if user is the coach who owns this slot
-    if (slot.coachId.toString() !== session.user.id) {
+    if (slot.coachId !== session.user.id) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
@@ -95,11 +79,22 @@ export async function PATCH(
     }
 
     const data = validationResult.data;
-    const updatedSlot = await Slot.findByIdAndUpdate(
-      slotId,
-      data,
-      { new: true, runValidators: true }
-    ).populate('coachId', 'firstName lastName profileImage');
+    const updatedSlot = await prisma.slot.update({
+      where: { id: slotId },
+      data: {
+        ...data,
+        status: data.status as SlotStatus,
+      },
+      include: {
+        coach: {
+          select: {
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+          }
+        }
+      }
+    });
 
     return NextResponse.json({
       message: 'Slot updated successfully',
@@ -125,15 +120,16 @@ export async function DELETE(
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-    
-    const slot = await Slot.findById(slotId);
+    const slot = await prisma.slot.findUnique({
+      where: { id: slotId }
+    });
+
     if (!slot) {
       return NextResponse.json({ message: 'Slot not found' }, { status: 404 });
     }
 
     // Check if user is the coach who owns this slot
-    if (slot.coachId.toString() !== session.user.id) {
+    if (slot.coachId !== session.user.id) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
@@ -145,7 +141,9 @@ export async function DELETE(
       );
     }
 
-    await Slot.findByIdAndDelete(slotId);
+    await prisma.slot.delete({
+      where: { id: slotId }
+    });
 
     return NextResponse.json({ message: 'Slot deleted successfully' });
   } catch (error) {

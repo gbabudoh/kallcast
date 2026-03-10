@@ -28,7 +28,7 @@ import { BookingWithDetails } from '@/types/booking';
 import { ROUTES } from '@/constants/routes';
 
 interface Student {
-  _id: string;
+  id: string;
   firstName: string;
   lastName: string;
   email?: string;
@@ -64,9 +64,9 @@ export default function CoachStudentsPage() {
 
       bookingsData.bookings.forEach((booking: BookingWithDetails) => {
         const studentData = booking.learner;
-        if (!studentData) return;
+        if (!studentData || !studentData.id) return;
 
-        const studentId = studentData._id.toString();
+        const studentId = String(studentData.id);
         const existing = studentMap.get(studentId);
 
         if (existing) {
@@ -76,14 +76,14 @@ export default function CoachStudentsPage() {
           }
         } else {
           studentMap.set(studentId, {
-            _id: studentId,
-            firstName: studentData.firstName,
-            lastName: studentData.lastName,
+            id: studentId,
+            firstName: studentData.firstName || 'Unknown',
+            lastName: studentData.lastName || '',
             email: studentData.email,
             profileImage: studentData.profileImage,
             totalSessions: 1,
             lastSession: new Date(booking.scheduledFor),
-            joinedAt: new Date(booking.createdAt || booking.scheduledFor), // Use createdAt if available
+            joinedAt: new Date(booking.createdAt || booking.scheduledFor),
           });
         }
       });
@@ -218,7 +218,7 @@ export default function CoachStudentsPage() {
                 </thead>
                 <tbody className="divide-y">
                   {filteredStudents.map((student) => (
-                    <tr key={student._id} className="group hover:bg-slate-50/50 transition-colors">
+                    <tr key={student.id} className="group hover:bg-slate-50/50 transition-colors">
                       <td className="py-4">
                         <div className="flex items-center space-x-3">
                           <Avatar className="w-10 h-10 border-2 border-white shadow-sm cursor-pointer">

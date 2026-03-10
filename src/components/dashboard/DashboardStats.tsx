@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useApi } from '@/hooks';
+import { useRouter } from 'next/navigation';
 import { BookingWithDetails } from '@/types/booking';
 import { 
   Calendar, 
@@ -10,11 +11,22 @@ import {
   Star,
   Clock,
   BookOpen,
-  Video
+  Video,
+  LucideIcon
 } from 'lucide-react';
 
 interface DashboardStatsProps {
   userRole: 'learner' | 'coach';
+}
+
+interface StatCard {
+  title: string;
+  value: string | number;
+  rawVal: number;
+  description: string;
+  icon: LucideIcon;
+  color: string;
+  href?: string;
 }
 
 interface Stats {
@@ -27,6 +39,7 @@ interface Stats {
 }
 
 export default function DashboardStats({ userRole }: DashboardStatsProps) {
+  const router = useRouter();
   const [stats, setStats] = useState<Stats>({
     totalSessions: 0,
     upcomingSessions: 0,
@@ -99,6 +112,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
       description: 'Sessions booked',
       icon: BookOpen,
       color: 'text-blue-600',
+      href: '/learner/my-sessions',
     },
     {
       title: 'Upcoming Sessions',
@@ -107,6 +121,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
       description: 'Sessions scheduled',
       icon: Calendar,
       color: 'text-green-600',
+      href: '/learner/my-sessions',
     },
     {
       title: 'Completed Sessions',
@@ -115,6 +130,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
       description: 'Sessions finished',
       icon: Video,
       color: 'text-purple-600',
+      href: '/learner/my-sessions',
     },
     {
       title: 'Learning Hours',
@@ -123,6 +139,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
       description: 'Hours of learning',
       icon: Clock,
       color: 'text-orange-600',
+      href: '/learner/my-sessions',
     },
   ] : [
     {
@@ -132,6 +149,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
       description: 'Sessions conducted',
       icon: BookOpen,
       color: 'text-blue-600',
+      href: '/coach/my-sessions',
     },
     {
       title: 'Upcoming Sessions',
@@ -140,6 +158,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
       description: 'Sessions scheduled',
       icon: Calendar,
       color: 'text-green-600',
+      href: '/coach/my-sessions',
     },
     {
       title: 'Total Earnings',
@@ -148,6 +167,7 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
       description: 'Lifetime earnings',
       icon: DollarSign,
       color: 'text-green-600',
+      href: '/coach/earnings',
     },
     {
       title: 'Average Rating',
@@ -156,42 +176,49 @@ export default function DashboardStats({ userRole }: DashboardStatsProps) {
       description: 'Based on reviews',
       icon: Star,
       color: 'text-yellow-600',
+      href: '#', // Or reviews page if implemented
     },
   ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {statsCards.map((stat, index) => {
-        const Icon = stat.icon;
-        const progressWidth = stat.rawVal > 0 ? Math.min(stat.rawVal * 10, 100) : 0;
+        const Icon = (stat as StatCard).icon;
+        const href = (stat as StatCard).href;
+        const rawVal = (stat as StatCard).rawVal;
+        const progressWidth = rawVal > 0 ? Math.min(rawVal * 10, 100) : 0;
         
         return (
-          <Card key={index} className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 group cursor-pointer" style={{ cursor: 'pointer' }}>
+          <Card 
+            key={index} 
+            className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 group cursor-pointer" 
+            onClick={() => href && router.push(href)}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-700">{stat.title}</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-700">{(stat as StatCard).title}</CardTitle>
               <div className={`h-10 w-10 rounded-xl bg-gradient-to-r ${
-                stat.color.includes('blue') ? 'from-blue-500 to-blue-600' :
-                stat.color.includes('green') ? 'from-green-500 to-green-600' :
-                stat.color.includes('purple') ? 'from-purple-500 to-purple-600' :
-                stat.color.includes('orange') ? 'from-orange-500 to-orange-600' :
+                (stat as StatCard).color.includes('blue') ? 'from-blue-500 to-blue-600' :
+                (stat as StatCard).color.includes('green') ? 'from-green-500 to-green-600' :
+                (stat as StatCard).color.includes('purple') ? 'from-purple-500 to-purple-600' :
+                (stat as StatCard).color.includes('orange') ? 'from-orange-500 to-orange-600' :
                 'from-yellow-500 to-yellow-600'
               } flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
                 <Icon className="h-5 w-5 text-white" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">{(stat as StatCard).value}</div>
               <p className="text-sm text-gray-600">
-                {stat.description}
+                {(stat as StatCard).description}
               </p>
               {/* Progress indicator */}
               <div className="mt-3 w-full bg-gray-200 rounded-full h-1">
                 <div 
                   className={`h-1 rounded-full bg-gradient-to-r ${
-                    stat.color.includes('blue') ? 'from-blue-500 to-blue-600' :
-                    stat.color.includes('green') ? 'from-green-500 to-green-600' :
-                    stat.color.includes('purple') ? 'from-purple-500 to-purple-600' :
-                    stat.color.includes('orange') ? 'from-orange-500 to-orange-600' :
+                    (stat as StatCard).color.includes('blue') ? 'from-blue-500 to-blue-600' :
+                    (stat as StatCard).color.includes('green') ? 'from-green-500 to-green-600' :
+                    (stat as StatCard).color.includes('purple') ? 'from-purple-500 to-purple-600' :
+                    (stat as StatCard).color.includes('orange') ? 'from-orange-500 to-orange-600' :
                     'from-yellow-500 to-yellow-600'
                   } transition-all duration-1000`}
                   style={{ width: `${progressWidth}%` }}

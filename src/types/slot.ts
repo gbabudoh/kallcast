@@ -1,5 +1,5 @@
 export interface Slot {
-  _id: string;
+  id: string;
   coachId: string;
   title: string;
   description: string;
@@ -50,8 +50,10 @@ export interface UpdateSlotRequest {
 
 export interface TimeSlot {
   id: string;
-  startTime: Date;
-  endTime: Date;
+  title: string;
+  description: string;
+  startTime: Date | string;
+  endTime: Date | string;
   price: number;
   duration: number;
   maxParticipants: number;
@@ -60,4 +62,5 @@ export interface TimeSlot {
   coachId: string;
   coachName: string;
   coachImage?: string;
+  category: string;
 }

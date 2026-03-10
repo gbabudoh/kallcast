@@ -41,6 +41,11 @@ export const updateProfileSchema = z.object({
   expertise: z.array(z.string()).min(1, 'At least one expertise area is required').optional(),
   yearsExperience: z.number().min(0, 'Years of experience must be 0 or more').optional(),
   hourlyRate: z.number().min(10, 'Hourly rate must be at least $10').optional(),
+  title: z.string().min(2, 'Professional title is too short').optional(),
+  company: z.string().optional(),
+  location: z.string().optional(),
+  specialties: z.array(z.string()).optional(),
+  profileImage: z.string().url('Invalid image URL').optional().or(z.literal('')),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

@@ -39,16 +39,19 @@ export const ROUTES = {
     MY_SESSIONS: '/learner/my-sessions',
     FAVORITES: '/learner/favorites',
     LEARNING_HISTORY: '/learner/learning-history',
+    SETTINGS: '/learner/settings',
   },
   
   // Coach Routes
   COACH: {
     MY_SESSIONS: '/coach/my-sessions',
+    BOOKINGS: '/coach/bookings',
     CREATE_SESSION: '/coach/my-sessions/create',
     EARNINGS: '/coach/earnings',
     STUDENTS: '/coach/students',
     ANALYTICS: '/analytics',
     ONBOARDING: '/coach-onboarding',
+    SETTINGS: '/coach/settings',
   },
   
   // Coach Profile Routes
@@ -112,6 +115,7 @@ export const PROTECTED_ROUTES = [
   ROUTES.LEARNER.MY_SESSIONS,
   ROUTES.LEARNER.FAVORITES,
   ROUTES.LEARNER.LEARNING_HISTORY,
+  ROUTES.LEARNER.SETTINGS,
   ROUTES.COACH.MY_SESSIONS,
   ROUTES.COACH.CREATE_SESSION,
   ROUTES.COACH.EARNINGS,

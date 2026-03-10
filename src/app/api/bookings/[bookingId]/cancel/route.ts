@@ -1,39 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import Booking from '@/models/Booking';
-import Slot from '@/models/Slot';
+import prisma from '@/lib/db';
+import { SessionStatus, SlotStatus } from '@/generated/client';
 import { cancelBookingSchema } from '@/validations/booking';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { bookingId: string } }
+  { params }: { params: Promise<{ bookingId: string }> }
 ) {
+  const { bookingId } = await params;
   try {
     const session = await auth();
     if (!session) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-    
-    const booking = await Booking.findById(params.bookingId);
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId }
+    });
+
     if (!booking) {
       return NextResponse.json({ message: 'Booking not found' }, { status: 404 });
     }
 
     // Check if user has permission to cancel this booking
-    if (booking.learnerId.toString() !== session.user.id && 
-        booking.coachId.toString() !== session.user.id) {
+    if (booking.learnerId !== session.user.id && booking.coachId !== session.user.id) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
     // Check if booking can be cancelled
-    if (booking.sessionStatus === 'cancelled') {
+    if (booking.sessionStatus === SessionStatus.cancelled) {
       return NextResponse.json({ message: 'Booking already cancelled' }, { status: 400 });
     }
 
-    if (booking.sessionStatus === 'completed') {
+    if (booking.sessionStatus === SessionStatus.completed) {
       return NextResponse.json({ message: 'Cannot cancel completed booking' }, { status: 400 });
     }
 
@@ -52,33 +52,68 @@ export async function POST(
 
     const { reason } = validationResult.data;
 
-    // Update booking
-    booking.sessionStatus = 'cancelled';
-    booking.cancellationReason = reason;
-    booking.cancelledBy = session.user.id;
-    booking.cancelledAt = new Date();
-    await booking.save();
+    // Use transaction to update booking and slot
+    const updatedBooking = await prisma.$transaction(async (tx) => {
+      // Update booking
+      const b = await tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          sessionStatus: SessionStatus.cancelled,
+          cancellationReason: reason,
+          cancelledById: session.user.id,
+          cancelledAt: new Date(),
+        },
+        include: {
+          slot: {
+            select: {
+              id: true,
+              currentParticipants: true,
+              maxParticipants: true,
+              status: true,
+              title: true,
+              description: true,
+              duration: true,
+              category: true,
+            }
+          },
+          coach: {
+            select: {
+              firstName: true,
+              lastName: true,
+              profileImage: true,
+            }
+          },
+          learner: {
+            select: {
+              firstName: true,
+              lastName: true,
+              profileImage: true,
+            }
+          }
+        }
+      });
 
-    // Update slot participants
-    const slot = await Slot.findById(booking.slotId);
-    if (slot) {
-      slot.currentParticipants = Math.max(0, slot.currentParticipants - 1);
-      if (slot.status === 'booked' && slot.currentParticipants < slot.maxParticipants) {
-        slot.status = 'available';
+      // Update slot participants
+      if (b.slot) {
+        const newParticipants = Math.max(0, b.slot.currentParticipants - 1);
+        await tx.slot.update({
+          where: { id: b.slotId },
+          data: {
+            currentParticipants: newParticipants,
+            status: newParticipants < b.slot.maxParticipants ? SlotStatus.available : b.slot.status
+          }
+        });
       }
-      await slot.save();
-    }
+
+      return b;
+    });
 
     // TODO: Handle refund logic here
     // This would typically involve calling Stripe's refund API
 
     return NextResponse.json({ 
       message: 'Booking cancelled successfully',
-      booking: await booking.populate([
-        { path: 'slotId', select: 'title description duration category' },
-        { path: 'coachId', select: 'firstName lastName profileImage' },
-        { path: 'learnerId', select: 'firstName lastName profileImage' }
-      ])
+      booking: updatedBooking
     });
   } catch (error) {
     console.error('Cancel booking error:', error);

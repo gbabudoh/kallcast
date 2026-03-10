@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
+import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Logo } from '@/components/ui/logo';
@@ -19,12 +20,25 @@ import { Menu, X, Settings, LogOut } from 'lucide-react';
 export default function Navbar() {
   const { data: session, status } = useSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSignOut = () => {
     signOut({ callbackUrl: '/' });
   };
 
-  const isCoach = session?.user?.role === 'coach';
+  // Determine role based on path (works immediately) or session (after load)
+  const isCoachPath = pathname?.startsWith('/coach');
+  const isLearnerPath = pathname?.startsWith('/learner');
+  const isCoach = session?.user?.role === 'coach' || isCoachPath;
+  const isDashboardRoute = isCoachPath || isLearnerPath;
+
+  // Show nav links if on dashboard routes OR if session exists
+  const showNavLinks = isDashboardRoute || !!session;
 
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -35,34 +49,49 @@ export default function Navbar() {
             <Logo 
               size="md" 
               variant="default" 
-              href={session ? (isCoach ? ROUTES.DASHBOARD.COACH_BASE : ROUTES.DASHBOARD.LEARNER_BASE) : ROUTES.HOME} 
+              href={showNavLinks ? (isCoach ? ROUTES.DASHBOARD.COACH_BASE : ROUTES.DASHBOARD.LEARNER_BASE) : ROUTES.HOME} 
             />
           </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <a href={isCoach ? ROUTES.DASHBOARD.COACH_BASE : ROUTES.DASHBOARD.LEARNER_BASE} className="text-gray-700 hover:text-gray-900">
-              Dashboard
-            </a>
-            <a href={ROUTES.LEARNER.EXPLORE} className="text-gray-700 hover:text-gray-900">
-              Explore
-            </a>
-            <a href={isCoach ? ROUTES.COACH.MY_SESSIONS : ROUTES.LEARNER.MY_SESSIONS} className="text-gray-700 hover:text-gray-900">
-              My Sessions
-            </a>
-            {isCoach && (
-              <a href={ROUTES.COACH.EARNINGS} className="text-gray-700 hover:text-gray-900">
-                Earnings
-              </a>
+            {showNavLinks && (
+              <>
+                <a 
+                  href={isCoach ? ROUTES.DASHBOARD.COACH_BASE : ROUTES.DASHBOARD.LEARNER_BASE} 
+                  className="text-gray-700 hover:text-gray-900 font-medium text-sm transition-colors"
+                >
+                  Dashboard
+                </a>
+                {!isCoach && (
+                  <a href={ROUTES.LEARNER.EXPLORE} className="text-gray-700 hover:text-gray-900 font-medium text-sm transition-colors">
+                    Explore
+                  </a>
+                )}
+                <a 
+                  href={isCoach ? ROUTES.COACH.MY_SESSIONS : ROUTES.LEARNER.MY_SESSIONS} 
+                  className="text-gray-700 hover:text-gray-900 font-medium text-sm transition-colors"
+                >
+                  My Sessions
+                </a>
+                {isCoach && (
+                  <>
+                    <a href={ROUTES.COACH.BOOKINGS} className="text-gray-700 hover:text-gray-900 font-medium text-sm transition-colors">
+                      Bookings
+                    </a>
+                    <a href={ROUTES.COACH.EARNINGS} className="text-gray-700 hover:text-gray-900 font-medium text-sm transition-colors">
+                      Earnings
+                    </a>
+                  </>
+                )}
+              </>
             )}
           </div>
 
           {/* User Menu */}
           <div className="hidden md:flex items-center space-x-4">
-            {status === 'loading' ? (
-              <div className="flex items-center space-x-2">
-                <div className="h-8 w-8 bg-gray-200 rounded-full animate-pulse"></div>
-              </div>
+            {!mounted || status === 'loading' ? (
+              <div className="h-8 w-8 bg-gray-200 rounded-full animate-pulse" />
             ) : session ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -88,7 +117,7 @@ export default function Navbar() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild className="cursor-pointer">
-                    <a href="/settings" className="flex items-center">
+                    <a href={isCoach ? ROUTES.COACH.SETTINGS : ROUTES.LEARNER.SETTINGS} className="flex items-center">
                       <Settings className="mr-2 h-4 w-4" />
                       <span>Settings</span>
                     </a>
@@ -100,7 +129,7 @@ export default function Navbar() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : (
+            ) : !isDashboardRoute ? (
               <div className="flex items-center space-x-2">
                 <a href="/login">
                   <Button variant="ghost">Sign In</Button>
@@ -109,6 +138,8 @@ export default function Navbar() {
                   <Button>Get Started</Button>
                 </a>
               </div>
+            ) : (
+              <div className="h-8 w-8 bg-gray-200 rounded-full animate-pulse" />
             )}
           </div>
 
@@ -132,57 +163,72 @@ export default function Navbar() {
         {isMobileMenuOpen && (
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-gray-200">
-              <a
-                href={isCoach ? ROUTES.DASHBOARD.COACH_BASE : ROUTES.DASHBOARD.LEARNER_BASE}
-                className="block px-3 py-2 text-gray-700 hover:text-gray-900"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Dashboard
-              </a>
-              <a
-                href={ROUTES.LEARNER.EXPLORE}
-                className="block px-3 py-2 text-gray-700 hover:text-gray-900"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Explore
-              </a>
-              <a
-                href={isCoach ? ROUTES.COACH.MY_SESSIONS : ROUTES.LEARNER.MY_SESSIONS}
-                className="block px-3 py-2 text-gray-700 hover:text-gray-900"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                My Sessions
-              </a>
-              {isCoach && (
-                <a
-                  href={ROUTES.COACH.EARNINGS}
-                  className="block px-3 py-2 text-gray-700 hover:text-gray-900"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  Earnings
-                </a>
-              )}
-              {session && (
+              {showNavLinks && (
                 <>
                   <a
-                    href="/settings"
-                    className="block px-3 py-2 text-gray-700 hover:text-gray-900 cursor-pointer"
+                    href={isCoach ? ROUTES.DASHBOARD.COACH_BASE : ROUTES.DASHBOARD.LEARNER_BASE}
+                    className="block px-3 py-2 text-gray-700 hover:text-gray-900 font-medium"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    Settings
+                    Dashboard
                   </a>
-                  <button
-                    onClick={() => {
-                      handleSignOut();
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="block w-full text-left px-3 py-2 text-gray-700 hover:text-gray-900 cursor-pointer"
+                  {!isCoach && (
+                    <a
+                      href={ROUTES.LEARNER.EXPLORE}
+                      className="block px-3 py-2 text-gray-700 hover:text-gray-900 font-medium"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Explore
+                    </a>
+                  )}
+                  <a
+                    href={isCoach ? ROUTES.COACH.MY_SESSIONS : ROUTES.LEARNER.MY_SESSIONS}
+                    className="block px-3 py-2 text-gray-700 hover:text-gray-900 font-medium"
+                    onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    Sign out
-                  </button>
+                    My Sessions
+                  </a>
+                  {isCoach && (
+                    <>
+                      <a
+                        href={ROUTES.COACH.BOOKINGS}
+                        className="block px-3 py-2 text-gray-700 hover:text-gray-900 font-medium"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        Bookings
+                      </a>
+                      <a
+                        href={ROUTES.COACH.EARNINGS}
+                        className="block px-3 py-2 text-gray-700 hover:text-gray-900 font-medium"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        Earnings
+                      </a>
+                    </>
+                  )}
+                  {session && (
+                    <>
+                      <a
+                        href={isCoach ? ROUTES.COACH.SETTINGS : ROUTES.LEARNER.SETTINGS}
+                        className="block px-3 py-2 text-gray-700 hover:text-gray-900"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        Settings
+                      </a>
+                      <button
+                        onClick={() => {
+                          handleSignOut();
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="block w-full text-left px-3 py-2 text-gray-700 hover:text-gray-900"
+                      >
+                        Sign out
+                      </button>
+                    </>
+                  )}
                 </>
               )}
-              {!session && (
+              {!showNavLinks && (
                 <>
                   <a
                     href="/login"

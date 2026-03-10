@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 import { ROUTES } from '@/constants/routes';
 
 interface SlotDetails {
-  _id: string;
+  id: string;
   title: string;
   description: string;
   price: number;
@@ -32,8 +32,8 @@ interface SlotDetails {
   startTime: string;
   endTime: string;
   category: string;
-  coachId: {
-    _id: string;
+  coachId: string;
+  coach: {
     firstName: string;
     lastName: string;
     profileImage?: string;
@@ -85,7 +85,7 @@ export default function BookingFlow() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          slotId: slot._id,
+          slotId: slot.id,
         }),
       });
 
@@ -170,9 +170,9 @@ export default function BookingFlow() {
               <div className="relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur opacity-25"></div>
                 <Avatar className="h-20 w-20 rounded-2xl ring-4 ring-white relative">
-                  <AvatarImage src={slot.coachId.profileImage} alt={`${slot.coachId.firstName} ${slot.coachId.lastName}`} className="object-cover" />
-                  <AvatarFallback className="text-xl bg-slate-100 text-slate-400 font-bold">
-                    {slot.coachId.firstName[0]}{slot.coachId.lastName[0]}
+                  <AvatarImage src={slot.coach.profileImage} alt={`${slot.coach.firstName} ${slot.coach.lastName}`} className="object-cover" />
+                  <AvatarFallback className="text-xl bg-transparent text-slate-900 font-black">
+                    {slot.coach.firstName[0]}{slot.coach.lastName[0]}
                   </AvatarFallback>
                 </Avatar>
               </div>
@@ -184,12 +184,12 @@ export default function BookingFlow() {
                   </Badge>
                   <div className="flex items-center bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest">
                     <Star className="w-3 h-3 fill-amber-500 text-amber-500 mr-1.5" />
-                    {slot.coachId.averageRating}
+                    {slot.coach.averageRating}
                   </div>
                 </div>
                 <CardTitle className="text-2xl font-black text-slate-900 leading-tight">{slot.title}</CardTitle>
                 <CardDescription className="text-slate-500 font-medium text-base">
-                  Mentorship session with <span className="text-slate-900 font-bold">{slot.coachId.firstName} {slot.coachId.lastName}</span>
+                  Mentorship session with <span className="text-slate-900 font-bold">{slot.coach.firstName} {slot.coach.lastName}</span>
                 </CardDescription>
               </div>
             </div>

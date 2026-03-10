@@ -11,7 +11,6 @@ import {
   Video, 
   User, 
   DollarSign, 
-  MoreVertical,
   X,
   CheckCircle
 } from 'lucide-react';
@@ -99,13 +98,13 @@ export default function BookingCard({
     try {
       switch (action) {
         case 'join':
-          if (onJoin) onJoin(booking._id);
+          if (onJoin) onJoin(booking.id);
           break;
         case 'cancel':
-          if (onCancel) onCancel(booking._id);
+          if (onCancel) onCancel(booking.id);
           break;
         case 'complete':
-          if (onComplete) onComplete(booking._id);
+          if (onComplete) onComplete(booking.id);
           break;
       }
     } finally {
@@ -230,7 +229,7 @@ export default function BookingCard({
               className="flex-1"
               onClick={() => {
                 // Navigate to review page
-                window.location.href = `/review/${booking._id}`;
+                window.location.href = `/review/${booking.id}`;
               }}
             >
               Leave Review

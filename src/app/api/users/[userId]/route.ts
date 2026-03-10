@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import User from '@/models/User';
+import prisma from '@/lib/db';
 import { updateProfileSchema } from '@/validations/auth';
 
 export async function GET(
@@ -14,9 +13,45 @@ export async function GET(
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
+    const user = await prisma.user.findUnique({
+      where: { id: params.userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        profileImage: true,
+        bio: true,
+        timezone: true,
+        createdAt: true,
+        updatedAt: true,
+        isVerified: true,
+        stripeAccountId: true,
+        stripeOnboardingComplete: true,
+        hourlyRate: true,
+        expertise: true,
+        yearsExperience: true,
+        title: true,
+        company: true,
+        location: true,
+        responseTime: true,
+        specialties: true,
+        background: true,
+        sessionTitle: true,
+        sessionGains: true,
+        coachAchievements: true,
+        totalSessions: true,
+        averageRating: true,
+        totalEarnings: true,
+        profileViews: true,
+        learningGoals: true,
+        achievements: true,
+        learningStreak: true,
+        lastActivityDate: true,
+      }
+    });
     
-    const user = await User.findById(params.userId).select('-password');
     if (!user) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
@@ -46,8 +81,6 @@ export async function PATCH(
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    await connectDB();
-    
     const body = await request.json();
     const validationResult = updateProfileSchema.safeParse(body);
 
@@ -62,11 +95,45 @@ export async function PATCH(
     }
 
     const data = validationResult.data;
-    const user = await User.findByIdAndUpdate(
-      params.userId,
+    const user = await prisma.user.update({
+      where: { id: params.userId },
       data,
-      { new: true, runValidators: true }
-    ).select('-password');
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        profileImage: true,
+        bio: true,
+        timezone: true,
+        createdAt: true,
+        updatedAt: true,
+        isVerified: true,
+        stripeAccountId: true,
+        stripeOnboardingComplete: true,
+        hourlyRate: true,
+        expertise: true,
+        yearsExperience: true,
+        title: true,
+        company: true,
+        location: true,
+        responseTime: true,
+        specialties: true,
+        background: true,
+        sessionTitle: true,
+        sessionGains: true,
+        coachAchievements: true,
+        totalSessions: true,
+        averageRating: true,
+        totalEarnings: true,
+        profileViews: true,
+        learningGoals: true,
+        achievements: true,
+        learningStreak: true,
+        lastActivityDate: true,
+      }
+    });
 
     if (!user) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });

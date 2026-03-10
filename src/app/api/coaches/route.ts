@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
-import User from '@/models/User';
+import { Prisma } from '@/generated/client';
+import prisma from '@/lib/db';
 import { APP_CONFIG } from '@/config/app';
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
+    
     
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || APP_CONFIG.PAGINATION.DEFAULT_PAGE.toString());
@@ -15,42 +15,63 @@ export async function GET(request: NextRequest) {
     const minRating = parseFloat(searchParams.get('minRating') || APP_CONFIG.SEARCH.DEFAULT_MIN_RATING.toString());
     const maxPrice = parseFloat(searchParams.get('maxPrice') || APP_CONFIG.SEARCH.DEFAULT_MAX_PRICE.toString());
 
-    // Build query
-    const query: any = {
+    // Build query for Prisma
+    const where: Prisma.UserWhereInput = {
       role: 'coach',
       isVerified: true,
     };
 
     if (category) {
-      query.expertise = { $in: [category] };
+      where.expertise = { has: category };
     }
 
     if (search) {
-      query.$or = [
-        { firstName: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } },
-        { bio: { $regex: search, $options: 'i' } },
-        { expertise: { $in: [new RegExp(search, 'i')] } },
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { bio: { contains: search, mode: 'insensitive' } },
+        { expertise: { has: search } }, // Case-sensitive for array elements in Prisma usually, but good enough for now
       ];
     }
 
     if (minRating > 0) {
-      query.averageRating = { $gte: minRating };
+      where.averageRating = { gte: minRating };
     }
 
     if (maxPrice < APP_CONFIG.SEARCH.DEFAULT_MAX_PRICE) {
-      query.hourlyRate = { $lte: maxPrice };
+      where.hourlyRate = { lte: maxPrice };
     }
 
     // Get coaches with pagination
     const skip = (page - 1) * limit;
-    const coaches = await User.find(query)
-      .select('-password -email')
-      .sort({ averageRating: -1, totalSessions: -1 })
-      .skip(skip)
-      .limit(limit);
+    const coaches = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        profileImage: true,
+        bio: true,
+        expertise: true,
+        yearsExperience: true,
+        hourlyRate: true,
+        averageRating: true,
+        totalSessions: true,
+        title: true,
+        company: true,
+        location: true,
+        sessionTitle: true,
+        sessionGains: true,
+      },
+      orderBy: [
+        { averageRating: 'desc' },
+        { totalSessions: 'desc' },
+      ],
+      skip,
+      take: limit,
+    });
 
-    const total = await User.countDocuments(query);
+    const total = await prisma.user.count({ where });
 
     return NextResponse.json({
       coaches,

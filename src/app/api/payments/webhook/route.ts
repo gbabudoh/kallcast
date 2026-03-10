@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
+import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
-import { createRoom } from '@/lib/daily';
-import connectDB from '@/lib/db';
-import Booking from '@/models/Booking';
-import Slot from '@/models/Slot';
-import Payment from '@/models/Payment';
-import User from '@/models/User';
+import prisma from '@/lib/db';
 import { sendEmail, generateBookingConfirmationEmail } from '@/lib/email';
+import { PaymentStatus, EscrowStatus, SlotStatus, PaymentRecordStatus } from '@/generated/client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'No signature' }, { status: 400 });
     }
 
-    let event;
+    let event: Stripe.Event;
 
     try {
       event = stripe.webhooks.constructEvent(
@@ -32,109 +29,113 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Invalid signature' }, { status: 400 });
     }
 
-    await connectDB();
-
     switch (event.type) {
       case 'checkout.session.completed': {
-        const session = event.data.object;
+        const session = event.data.object as Stripe.Checkout.Session;
         const metadata = session.metadata || {};
-        const { bookingId, slotId, coachId, learnerId } = metadata;
+        const bookingId = metadata.bookingId;
+        const slotId = metadata.slotId;
+        const coachId = metadata.coachId;
+        const learnerId = metadata.learnerId;
 
         if (!bookingId) {
           console.error('No bookingId in session metadata');
           break;
         }
 
-        // Find existing pending booking
-        const booking = await Booking.findById(bookingId);
-        if (!booking) {
-          console.error(`Booking not found: ${bookingId}`);
-          break;
-        }
+        // Finalized fees from metadata
+        const platformFeeDollars = parseFloat(metadata.platformFee || '0');
+        const stripeFeeDollars = parseFloat(metadata.stripeFee || '0');
+        const coachPayoutDollars = parseFloat(metadata.coachPayout || '0');
+        const amountTotalDollars = (session.amount_total || 0) / 100;
 
-        // Finalize booking with Stripe details and precise fees
-        booking.paymentIntentId = session.payment_intent as string;
-        booking.paymentStatus = 'authorized'; // Escrowed
-        booking.escrowStatus = 'authorized';
-        
-        // Re-calculate fees for precision based on actual amount_total
-        const amountTotal = (session.amount_total || 0) / 100;
-        const platformFee = parseFloat(metadata.platformFee || '0');
-        const stripeFee = parseFloat(metadata.stripeFee || '0');
-        const coachPayout = parseFloat(metadata.coachPayout || '0');
-
-        booking.amount = amountTotal;
-        booking.platformFee = platformFee;
-        booking.stripeFee = stripeFee;
-        booking.coachPayout = coachPayout;
-
-        // Create video room
-        const slot = await Slot.findById(slotId);
-        if (slot) {
-          // Note: createRoom in lib/daily handled name conflict previously
-          const room = await createRoom({
-            name: `session-${booking._id}`,
-            maxParticipants: slot.maxParticipants,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            enableRecording: true,
+        // Update booking and related data in a transaction
+        await prisma.$transaction(async (tx) => {
+          await tx.booking.update({
+            where: { id: bookingId },
+            data: {
+              paymentIntentId: session.payment_intent as string,
+              paymentStatus: PaymentStatus.authorized,
+              escrowStatus: EscrowStatus.authorized,
+              amount: amountTotalDollars,
+              platformFee: platformFeeDollars,
+              stripeFee: stripeFeeDollars,
+              coachPayout: coachPayoutDollars,
+            }
           });
 
-          booking.videoRoomUrl = room.url;
-          booking.videoRoomId = room.id;
-          booking.scheduledFor = slot.startTime;
-        }
-
-        await booking.save();
-
-        // Update slot participants
-        if (slot) {
-          slot.currentParticipants += 1;
-          if (slot.currentParticipants >= slot.maxParticipants) {
-            slot.status = 'booked';
+          // Create or update payment record
+          await tx.payment.upsert({
+            where: { id: `payment-${bookingId}` },
+            create: {
+              id: `payment-${bookingId}`,
+              bookingId: bookingId,
+              coachId: coachId || '',
+              learnerId: learnerId || '',
+              amount: amountTotalDollars,
+              platformFee: platformFeeDollars,
+              stripeFee: stripeFeeDollars,
+              coachPayout: coachPayoutDollars,
+              stripePaymentIntentId: session.payment_intent as string,
+              status: PaymentRecordStatus.held,
+              paidAt: new Date(),
+            },
+            update: {
+              amount: amountTotalDollars,
+              platformFee: platformFeeDollars,
+              stripeFee: stripeFeeDollars,
+              coachPayout: coachPayoutDollars,
+              stripePaymentIntentId: session.payment_intent as string,
+              status: PaymentRecordStatus.held,
+              paidAt: new Date(),
+            }
+          });
+          
+          // Also update slot participants if not already done
+          if (slotId) {
+            const slot = await tx.slot.findUnique({ where: { id: slotId } });
+            if (slot) {
+              const newParticipants = slot.currentParticipants + 1;
+              await tx.slot.update({
+                where: { id: slotId },
+                data: {
+                  currentParticipants: newParticipants,
+                  status: newParticipants >= slot.maxParticipants ? SlotStatus.booked : SlotStatus.available
+                }
+              });
+            }
           }
-          await slot.save();
-        }
-
-        // Create/Update payment record
-        await Payment.findOneAndUpdate(
-          { bookingId: booking._id },
-          {
-            coachId,
-            learnerId,
-            amount: booking.amount,
-            platformFee: booking.platformFee,
-            stripeFee: booking.stripeFee,
-            coachPayout: booking.coachPayout,
-            stripePaymentIntentId: session.payment_intent as string,
-            status: 'held',
-            paidAt: new Date(),
-          },
-          { upsert: true, new: true }
-        );
+        });
 
         // Send confirmation emails
-        const learner = await User.findById(learnerId);
-        const coach = await User.findById(coachId);
-        
-        if (learner && coach && slot) {
-          const emailData = generateBookingConfirmationEmail(
-            learner.firstName,
-            coach.firstName,
-            slot.title,
-            slot.startTime,
-            booking.videoRoomUrl
-          );
+        if (learnerId && coachId) {
+          const learner = await prisma.user.findUnique({ where: { id: learnerId } });
+          const coach = await prisma.user.findUnique({ where: { id: coachId } });
+          const slot = slotId ? await prisma.slot.findUnique({ where: { id: slotId } }) : null;
+          
+          if (learner && coach) {
+            try {
+              const emailData = generateBookingConfirmationEmail(
+                learner.firstName,
+                coach.firstName,
+                slot?.title || 'Coaching Session',
+                slot?.startTime || new Date(),
+                '' // LiveKit room URL is usually determined when session starts or stored in DB
+              );
 
-          await sendEmail({
-            to: learner.email,
-            subject: emailData.subject,
-            html: emailData.html,
-          });
+              await sendEmail({
+                to: learner.email,
+                subject: emailData.subject,
+                html: emailData.html,
+              });
+            } catch (emailError) {
+              console.error('Failed to send confirmation email:', emailError);
+            }
+          }
         }
 
-        break;
-      }
+      break;
+    }
 
       case 'payment_intent.succeeded': {
         // Update booking payment status if needed

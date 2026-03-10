@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import Booking from '@/models/Booking';
-import Slot from '@/models/Slot';
+import { SessionStatus, SlotStatus, PaymentStatus, Prisma } from '@/generated/client';
+import prisma from '@/lib/db';
 import { createBookingSchema } from '@/validations/booking';
 
 export async function GET(request: NextRequest) {
@@ -12,13 +11,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-    
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'all'; // all, upcoming, completed, cancelled
     const role = searchParams.get('role') || 'learner'; // learner, coach
 
-    const query: Record<string, unknown> = {};
+    const query: Prisma.BookingWhereInput = {};
 
     if (role === 'learner') {
       query.learnerId = session.user.id;
@@ -28,19 +25,45 @@ export async function GET(request: NextRequest) {
 
     // Filter by status
     if (type === 'upcoming') {
-      query.sessionStatus = { $in: ['scheduled', 'in-progress'] };
-      query.scheduledFor = { $gte: new Date() };
+      query.sessionStatus = { in: [SessionStatus.scheduled, SessionStatus.in_progress] };
+      query.scheduledFor = { gte: new Date() };
     } else if (type === 'completed') {
-      query.sessionStatus = 'completed';
+      query.sessionStatus = SessionStatus.completed;
     } else if (type === 'cancelled') {
-      query.sessionStatus = 'cancelled';
+      query.sessionStatus = SessionStatus.cancelled;
     }
 
-    const bookings = await Booking.find(query)
-      .populate('slotId', 'title description duration category')
-      .populate('coachId', 'firstName lastName profileImage')
-      .populate('learnerId', 'firstName lastName profileImage email')
-      .sort({ scheduledFor: -1 });
+    const bookings = await prisma.booking.findMany({
+      where: query,
+      include: {
+        slot: {
+          select: {
+            title: true,
+            description: true,
+            duration: true,
+            category: true,
+          }
+        },
+        coach: {
+          select: {
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+          }
+        },
+        learner: {
+          select: {
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            email: true,
+          }
+        }
+      },
+      orderBy: {
+        scheduledFor: 'desc'
+      }
+    });
 
     return NextResponse.json({ bookings });
   } catch (error) {
@@ -63,8 +86,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    await connectDB();
-    
     const body = await request.json();
     const validationResult = createBookingSchema.safeParse(body);
 
@@ -81,13 +102,17 @@ export async function POST(request: NextRequest) {
     const { slotId } = validationResult.data;
 
     // Get slot details
-    const slot = await Slot.findById(slotId).populate('coachId');
+    const slot = await prisma.slot.findUnique({
+      where: { id: slotId },
+      include: { coach: true }
+    });
+
     if (!slot) {
       return NextResponse.json({ message: 'Slot not found' }, { status: 404 });
     }
 
     // Check if slot is available
-    if (slot.status !== 'available') {
+    if (slot.status !== SlotStatus.available) {
       return NextResponse.json({ message: 'Slot is not available' }, { status: 400 });
     }
 
@@ -106,40 +131,67 @@ export async function POST(request: NextRequest) {
     const platformFee = Math.round(amount * 0.20); // 20% platform fee
     const coachPayout = amount - platformFee;
 
-    // Create booking (payment will be handled by Stripe webhook)
-    const booking = new Booking({
-      slotId,
-      learnerId: session.user.id,
-      coachId: slot.coachId._id,
-      amount,
-      platformFee,
-      stripeFee: 0, // Will be updated by webhook
-      coachPayout,
-      paymentIntentId: 'temp_' + Date.now(), // Temporary, will be updated by Stripe
-      paymentStatus: 'pending',
-      sessionStatus: 'scheduled',
-      videoRoomUrl: '', // Will be created when payment is confirmed
-      videoRoomId: '', // Will be created when payment is confirmed
-      scheduledFor: slot.startTime,
+    // Use transaction to ensure both booking is created and slot is updated
+    const booking = await prisma.$transaction(async (tx) => {
+      const newBooking = await tx.booking.create({
+        data: {
+          slotId,
+          learnerId: session.user.id,
+          coachId: slot.coachId,
+          amount,
+          platformFee,
+          stripeFee: 0,
+          coachPayout,
+          paymentIntentId: 'temp_' + Date.now(),
+          paymentStatus: PaymentStatus.pending,
+          sessionStatus: SessionStatus.scheduled,
+          videoRoomUrl: '',
+          videoRoomId: '',
+          scheduledFor: slot.startTime,
+        },
+        include: {
+          slot: {
+            select: {
+              title: true,
+              description: true,
+              duration: true,
+              category: true,
+            }
+          },
+          coach: {
+            select: {
+              firstName: true,
+              lastName: true,
+              profileImage: true,
+            }
+          },
+          learner: {
+            select: {
+              firstName: true,
+              lastName: true,
+              profileImage: true,
+            }
+          }
+        }
+      });
+
+      // Update slot participants
+      const newParticipants = slot.currentParticipants + 1;
+      await tx.slot.update({
+        where: { id: slotId },
+        data: {
+          currentParticipants: newParticipants,
+          status: newParticipants >= slot.maxParticipants ? SlotStatus.booked : SlotStatus.available
+        }
+      });
+
+      return newBooking;
     });
-
-    await booking.save();
-
-    // Update slot participants
-    slot.currentParticipants += 1;
-    if (slot.currentParticipants >= slot.maxParticipants) {
-      slot.status = 'booked';
-    }
-    await slot.save();
 
     return NextResponse.json(
       { 
         message: 'Booking created successfully', 
-        booking: await booking.populate([
-          { path: 'slotId', select: 'title description duration category' },
-          { path: 'coachId', select: 'firstName lastName profileImage' },
-          { path: 'learnerId', select: 'firstName lastName profileImage' }
-        ])
+        booking 
       },
       { status: 201 }
     );

@@ -1,33 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, PhoneOff, Maximize2, AlertTriangle } from 'lucide-react';
+import { Clock, AlertTriangle } from 'lucide-react';
 import {
-  JITSI_DOMAIN,
-  buildJitsiOptions,
-  SESSION_CONFIG,
-  calculateSessionEnd,
-  getRemainingTime,
-  formatTime,
-  shouldShowWarning,
-  type JitsiRoomConfig,
-} from '@/lib/jitsi';
-
-declare global {
-  interface Window {
-    JitsiMeetExternalAPI: new (domain: string, options: object) => JitsiAPI;
-  }
-}
-
-interface JitsiAPI {
-  executeCommand: (command: string, ...args: unknown[]) => void;
-  addEventListener: (event: string, listener: (...args: unknown[]) => void) => void;
-  removeEventListener: (event: string, listener: (...args: unknown[]) => void) => void;
-  dispose: () => void;
-}
+  LiveKitRoom,
+  VideoConference,
+  RoomAudioRenderer,
+} from '@livekit/components-react';
+import '@livekit/components-styles';
 
 interface VideoRoomProps {
   sessionId: string;
@@ -44,177 +27,96 @@ interface VideoRoomProps {
 }
 
 export default function VideoRoom({
-  // bookingId available for future use
-  sessionId,
+  bookingId,
   displayName,
-  email,
-  avatarUrl,
   sessionTitle,
-  durationMinutes = SESSION_CONFIG.defaultDuration,
+  durationMinutes = 60,
   startTime,
   onSessionEnd,
-  onParticipantJoined,
-  onParticipantLeft,
 }: VideoRoomProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const apiRef = useRef<JitsiAPI | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [remainingTime, setRemainingTime] = useState<number>(durationMinutes * 60);
   const [warningLevel, setWarningLevel] = useState<'none' | 'warning' | 'final'>('none');
   const [isEnding, setIsEnding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sessionEndTime = calculateSessionEnd(startTime, durationMinutes);
+  const formatTimeRemaining = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
-  // End session handler
-  const handleEndSession = useCallback(async () => {
-    if (isEnding) return;
-    setIsEnding(true);
+  const sessionEndTime = useMemo(() => 
+    new Date(startTime.getTime() + durationMinutes * 60000),
+    [startTime, durationMinutes]
+  );
 
-    if (apiRef.current) {
-      apiRef.current.executeCommand('hangup');
-    }
-
-    // Navigate to confirmation page
-    if (onSessionEnd) {
-      onSessionEnd();
-    }
-  }, [isEnding, onSessionEnd]);
-
-  // Initialize Jitsi
+  // Fetch LiveKit token
   useEffect(() => {
-    const loadJitsi = async () => {
-      console.log('🎥 Jitsi: Starting load process...');
-      // Load Jitsi External API script
-      if (!window.JitsiMeetExternalAPI) {
-        console.log('🎥 Jitsi: Script not found, creating script element...');
-        const script = document.createElement('script');
-        script.src = `https://${JITSI_DOMAIN}/external_api.js`;
-        script.async = true;
-        script.onload = () => {
-          console.log('🎥 Jitsi: Script loaded successfully.');
-          initializeJitsi();
-        };
-        script.onerror = (e) => {
-          console.error('🎥 Jitsi: Script failed to load!', e);
-          setError('Failed to load video script. Your network or browser may be blocking the Jitsi server.');
-        };
-        document.body.appendChild(script);
-      } else {
-        console.log('🎥 Jitsi: Script already exists, initializing...');
-        initializeJitsi();
-      }
-    };
-
-    const initializeJitsi = () => {
-      if (!containerRef.current || apiRef.current) {
-        console.log('🎥 Jitsi: Container not ready or API already initialized.');
-        return;
-      }
-
-      console.log(`🎥 Jitsi: Initializing room kallcast-${sessionId} on ${JITSI_DOMAIN}`);
-
-      const roomConfig: JitsiRoomConfig = {
-        roomName: `kallcast-${sessionId}`,
-        displayName,
-        email,
-        avatarUrl,
-        subject: sessionTitle || 'KallCast Coaching Session',
-        sessionDuration: durationMinutes,
-      };
-
-      const options = buildJitsiOptions(roomConfig, containerRef.current);
-
+    const fetchToken = async () => {
       try {
-        const api = new window.JitsiMeetExternalAPI(JITSI_DOMAIN, options);
-        apiRef.current = api;
-        console.log('🎥 Jitsi: API Instance created.');
-
-        // Set session subject
-        api.executeCommand('subject', sessionTitle || 'KallCast Coaching Session');
-
-        // Event listeners
-        api.addEventListener('videoConferenceJoined', () => {
-          console.log('🎥 Jitsi: Participant joined room successfully.');
+        // Ensure room is created/ready
+        await fetch('/api/video/create-room', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookingId }),
         });
 
-        api.addEventListener('participantJoined', (participant: unknown) => {
-          console.log('🎥 Jitsi: Another participant joined:', participant);
-          if (onParticipantJoined && participant && typeof participant === 'object') {
-            onParticipantJoined(participant as { displayName: string });
-          }
+        // Get token
+        const resp = await fetch('/api/video/get-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookingId }),
         });
-
-        api.addEventListener('participantLeft', (participant: unknown) => {
-          console.log('🎥 Jitsi: Participant left:', participant);
-          if (onParticipantLeft && participant && typeof participant === 'object') {
-            onParticipantLeft(participant as { displayName: string });
-          }
-        });
-
-        api.addEventListener('videoConferenceLeft', () => {
-          console.log('🎥 Jitsi: Video conference left.');
-          handleEndSession();
-        });
-      } catch (error) {
-        console.error('🎥 Jitsi: Critical initialization error:', error);
-        setError('Failed to connect to the video room. Please try again.');
+        
+        const data = await resp.json();
+        if (data.token) {
+          setToken(data.token);
+          setServerUrl(data.serverUrl);
+        } else {
+          setError(data.message || 'Failed to get video token');
+        }
+      } catch (e) {
+        console.error('Error fetching token:', e);
+        setError('Connection error. Please check your internet.');
       }
     };
 
-    if (!error) { 
-      loadJitsi();
-    }
+    fetchToken();
+  }, [bookingId]);
 
-    return () => {
-      if (apiRef.current) {
-        apiRef.current.dispose();
-        apiRef.current = null;
-      }
-    };
-  }, [sessionId, displayName, email, avatarUrl, sessionTitle, durationMinutes, onParticipantJoined, onParticipantLeft, handleEndSession, error]);
-
-  // Session timer
+  // Session timer logic
   useEffect(() => {
     const timer = setInterval(() => {
-      const remaining = getRemainingTime(sessionEndTime);
+      const now = new Date().getTime();
+      const end = sessionEndTime.getTime();
+      const remaining = Math.max(0, Math.floor((end - now) / 1000));
+      
       setRemainingTime(remaining);
-      setWarningLevel(shouldShowWarning(remaining));
+      
+      if (remaining <= 60) setWarningLevel('final');
+      else if (remaining <= 300) setWarningLevel('warning');
+      else setWarningLevel('none');
 
-      // Auto-end session when time is up
       if (remaining <= 0) {
         clearInterval(timer);
-        handleEndSession();
-      }
-
-      // Show in-room notification at warning times
-      if (apiRef.current) {
-        if (remaining === SESSION_CONFIG.warningTime * 60) {
-          apiRef.current.executeCommand('displayNotification', {
-            title: '⏰ 5 Minutes Remaining',
-            description: 'Your coaching session will end soon.',
-          });
-        }
-        if (remaining === SESSION_CONFIG.finalWarning * 60) {
-          apiRef.current.executeCommand('displayNotification', {
-            title: '⏰ 1 Minute Remaining',
-            description: 'Session ending in 1 minute.',
-          });
-        }
+        onSessionEnd?.();
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [sessionEndTime, handleEndSession]);
+  }, [sessionEndTime, onSessionEnd]);
 
-  // Retry handler
-  const handleRetry = () => {
-    setError(null);
-    // Reload the page to retry cleanly
-    window.location.reload(); 
-  };
+  const handleEndSession = useCallback(() => {
+    if (isEnding) return;
+    setIsEnding(true);
+    onSessionEnd?.();
+  }, [isEnding, onSessionEnd]);
+
 
   return (
-    <div className="relative w-full h-full min-h-[600px] bg-slate-900 rounded-2xl overflow-hidden">
+    <div className="relative w-full h-full min-h-[600px] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl">
       {/* Session Header */}
       <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-slate-900/90 to-transparent">
         <div className="flex items-center justify-between">
@@ -223,11 +125,16 @@ export default function VideoRoom({
               <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse mr-2" />
               Live
             </Badge>
-            {sessionTitle && (
-              <span className="text-white/80 font-medium text-sm truncate max-w-xs">
-                {sessionTitle}
+            <div className="flex flex-col">
+              {sessionTitle && (
+                <span className="text-white font-bold text-sm truncate max-w-xs">
+                  {sessionTitle}
+                </span>
+              )}
+              <span className="text-white/60 text-xs">
+                With {displayName}
               </span>
-            )}
+            </div>
           </div>
 
           {/* Timer */}
@@ -242,78 +149,48 @@ export default function VideoRoom({
           >
             {warningLevel !== 'none' && <AlertTriangle className="w-4 h-4" />}
             <Clock className="w-4 h-4" />
-            <span className="font-mono font-bold">{formatTime(remainingTime)}</span>
+            <span className="font-mono font-bold">{formatTimeRemaining(remainingTime)}</span>
           </div>
         </div>
       </div>
 
-      {/* Jitsi Container */}
-      <div ref={containerRef} className="w-full h-full" />
-
-      {/* Error Overlay */}
-      {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-900 z-20">
-          <div className="text-center max-w-md px-6">
-            <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
-              <PhoneOff className="w-8 h-8 text-red-500" />
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">Connection Failed</h3>
-            <p className="text-white/60 mb-2">{error}</p>
-            <div className="text-xs text-amber-400 bg-amber-500/10 px-3 py-2 rounded border border-amber-500/20 mb-6">
-              Trying to reach: <span className="font-mono">{JITSI_DOMAIN}</span>
-              <br/>
-              Ensure this domain allows embedding (CORS/Frameguard).
-            </div>
-            <div className="flex justify-center space-x-4">
-              <Button 
-                variant="outline" 
-                onClick={handleEndSession}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleRetry}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Retry Connection
-              </Button>
-            </div>
+      {/* Main Video Content */}
+      <div className="w-full h-full">
+        {error ? (
+          <div className="flex flex-col items-center justify-center h-full text-white p-8">
+            <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
+            <h3 className="text-xl font-bold mb-2">Connection Failed</h3>
+            <p className="text-slate-400 mb-6 text-center">{error}</p>
+            <Button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700">
+              Retry Connection
+            </Button>
           </div>
-        </div>
-      )}
-
-      {/* Bottom Controls */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 p-4 bg-gradient-to-t from-slate-900/90 to-transparent">
-        <div className="flex items-center justify-center space-x-4">
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-slate-800/80 border-slate-700 text-white hover:bg-slate-700"
-            onClick={() => apiRef.current?.executeCommand('toggleTileView')}
+        ) : !token || !serverUrl ? (
+          <div className="flex flex-col items-center justify-center h-full text-white">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-slate-400 font-medium">Initializing secure session...</p>
+          </div>
+        ) : (
+          <LiveKitRoom
+            video={true}
+            audio={true}
+            token={token}
+            serverUrl={serverUrl}
+            data-lk-theme="default"
+            onDisconnected={handleEndSession}
+            style={{ height: '100%' }}
           >
-            <Maximize2 className="w-4 h-4 mr-2" />
-            Tile View
-          </Button>
-
-          <Button
-            variant="destructive"
-            size="lg"
-            className="bg-red-600 hover:bg-red-700 text-white font-bold px-8 rounded-full"
-            onClick={handleEndSession}
-            disabled={isEnding}
-          >
-            <PhoneOff className="w-5 h-5 mr-2" />
-            {isEnding ? 'Ending...' : 'End Session'}
-          </Button>
-        </div>
+            <VideoConference />
+            <RoomAudioRenderer />
+          </LiveKitRoom>
+        )}
       </div>
 
       {/* Warning Overlay */}
-      {warningLevel === 'final' && (
+      {warningLevel === 'final' && !error && token && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20">
           <Card className="bg-red-500/90 border-red-400 text-white px-6 py-3 animate-bounce">
-            <p className="font-bold text-sm">⏰ Session ending in {formatTime(remainingTime)}!</p>
+            <p className="font-bold text-sm">⏰ Session ending in {formatTimeRemaining(remainingTime)}!</p>
           </Card>
         </div>
       )}

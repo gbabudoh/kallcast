@@ -24,7 +24,7 @@ import { toast } from 'sonner';
 import { ROUTES } from '@/constants/routes';
 
 interface SessionSlot {
-  _id: string;
+  id: string;
   title: string;
   startTime: string;
   status: string;
@@ -34,24 +34,24 @@ interface SessionSlot {
 }
 
 interface PopulatedBooking {
-  _id: string;
+  id: string;
   amount: number;
   sessionStatus: string;
   scheduledFor: string;
   slotId: {
-    _id: string;
+    id: string;
     title: string;
     duration: number;
     category?: string;
   };
   coachId: {
-    _id: string;
+    id: string;
     firstName: string;
     lastName: string;
     profileImage?: string;
   };
   learnerId: {
-    _id: string;
+    id: string;
     firstName: string;
     lastName: string;
     profileImage?: string;
@@ -96,7 +96,7 @@ export default function MySessionsPage() {
             
             const upcoming = bookingsList.filter((b) => b.sessionStatus === 'scheduled').length;
             const completed = bookingsList.filter((b) => b.sessionStatus === 'completed').length;
-            const students = new Set(bookingsList.map((b) => b.learnerId._id)).size;
+            const students = new Set(bookingsList.map((b) => b.learnerId.id)).size;
             const earnings = bookingsList.reduce((acc, b) => acc + (b.coachPayout || 0), 0);
 
             setStats({ upcoming, completed, students, earnings, spent: 0 });
@@ -223,18 +223,23 @@ export default function MySessionsPage() {
           ) : (isLearner ? bookings.length > 0 : slots.length > 0) ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {isLearner ? (
-                bookings.map((booking: PopulatedBooking) => (
-                  <div key={booking._id} className="bg-slate-50/50 border border-slate-100 p-6 rounded-[2rem] hover:border-blue-200 transition-all group shadow-sm flex flex-col">
+                bookings.map((booking: PopulatedBooking) => {
+                  const coachFirstName = booking.coachId?.firstName || 'Coach';
+                  const coachLastName = booking.coachId?.lastName || '';
+                  const coachInitials = `${coachFirstName[0] || 'C'}${coachLastName[0] || ''}`;
+                  
+                  return (
+                  <div key={booking.id} className="bg-slate-50/50 border border-slate-100 p-6 rounded-[2rem] hover:border-blue-200 transition-all group shadow-sm flex flex-col">
                     <div className="flex items-center space-x-4 mb-5">
                       <Avatar className="h-12 w-12 rounded-2xl ring-2 ring-white cursor-pointer">
-                        <AvatarImage src={booking.coachId.profileImage} className="cursor-pointer" />
+                        <AvatarImage src={booking.coachId?.profileImage} className="cursor-pointer" />
                         <AvatarFallback className="bg-blue-100 text-blue-600 font-bold cursor-pointer">
-                          {booking.coachId.firstName[0]}{booking.coachId.lastName[0]}
+                          {coachInitials}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
                         <div className="flex justify-between items-start">
-                          <h4 className="text-lg font-black text-slate-900">{booking.slotId.title}</h4>
+                          <h4 className="text-lg font-black text-slate-900">{booking.slotId?.title || 'Session'}</h4>
                           <Badge className={
                             booking.sessionStatus === 'scheduled' ? 'bg-blue-100 text-blue-700' :
                             booking.sessionStatus === 'completed' ? 'bg-green-100 text-green-700' :
@@ -243,7 +248,7 @@ export default function MySessionsPage() {
                             {booking.sessionStatus}
                           </Badge>
                         </div>
-                        <p className="text-slate-500 text-sm font-medium">Session with {booking.coachId.firstName} {booking.coachId.lastName}</p>
+                        <p className="text-slate-500 text-sm font-medium">Session with {coachFirstName} {coachLastName}</p>
                       </div>
                     </div>
 
@@ -262,7 +267,7 @@ export default function MySessionsPage() {
                         <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Duration</div>
                         <div className="text-sm font-bold text-slate-900 flex items-center cursor-pointer">
                           <Clock className="h-3.5 w-3.5 mr-2 text-blue-500 cursor-pointer" />
-                          {booking.slotId.duration} Minutes
+                          {booking.slotId?.duration || 60} Minutes
                         </div>
                         <div className="text-xs text-slate-500 font-medium ml-5 mt-0.5">
                           4K Live Video
@@ -274,7 +279,7 @@ export default function MySessionsPage() {
                       <div className="font-black text-xl text-slate-900">${booking.amount}</div>
                       {booking.sessionStatus === 'scheduled' && (
                         <Button 
-                          onClick={() => router.push(ROUTES.SESSION.ROOM(booking._id))}
+                          onClick={() => router.push(ROUTES.SESSION.ROOM(booking.id))}
                           className="bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl px-5 py-5 flex items-center space-x-2 transition-all shadow-md active:scale-95 cursor-pointer"
                         >
                           <Video className="h-4 w-4 cursor-pointer" />
@@ -291,10 +296,10 @@ export default function MySessionsPage() {
                       )}
                     </div>
                   </div>
-                ))
+                )})
               ) : (
                 slots.map((slot) => (
-                  <div key={slot._id} className="bg-slate-50/50 border border-slate-100 p-6 rounded-[2rem] hover:border-blue-200 transition-all group shadow-sm cursor-pointer">
+                  <div key={slot.id} className="bg-slate-50/50 border border-slate-100 p-6 rounded-[2rem] hover:border-blue-200 transition-all group shadow-sm cursor-pointer">
                     <div className="flex justify-between items-start mb-4 cursor-pointer">
                       <h4 className="text-lg font-black text-slate-900 cursor-pointer">{slot.title}</h4>
                       <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest cursor-pointer ${

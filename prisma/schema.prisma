@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  learner
+  coach
+}
+
+enum PaymentStatus {
+  pending
+  authorized
+  captured
+  paid
+  refunded
+  failed
+}
+
+enum EscrowStatus {
+  authorized
+  captured
+  released
+  refunded
+  disputed
+}
+
+enum SessionStatus {
+  scheduled
+  in_progress
+  pending_confirmation
+  completed
+  cancelled
+  no_show
+  disputed
+}
+
+enum SlotStatus {
+  available
+  booked
+  completed
+  cancelled
+  blueprint
+}
+
+enum PaymentRecordStatus {
+  pending
+  held
+  transferred
+  refunded
+}
+
+model User {
+  id                       String    @id @default(cuid())
+  email                    String    @unique
+  password                 String
+  firstName                String
+  lastName                 String
+  role                     Role
+  profileImage             String?
+  bio                      String?
+  timezone                 String    @default("UTC")
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  // Coach-specific fields
+  isVerified               Boolean   @default(false)
+  stripeAccountId          String?
+  stripeOnboardingComplete Boolean   @default(false)
+  hourlyRate               Float?
+  expertise                String[]
+  yearsExperience          Int?
+  title                    String?
+  company                  String?
+  location                 String?
+  responseTime             Int?
+  specialties              String[]
+  background               String?
+  sessionTitle             String?
+  sessionGains             String[]
+  coachAchievements        Json?
+
+  // Stats
+  totalSessions            Int       @default(0)
+  averageRating            Float     @default(0)
+  totalEarnings            Float     @default(0)
+  profileViews             Int       @default(0)
+
+  // Learner specific tracking
+  learningGoals            Json?
+  achievements             Json?
+  learningStreak           Int       @default(0)
+  lastActivityDate         DateTime?
+
+  // Relations
+  coachBookings            Booking[] @relation("CoachBookings")
+  learnerBookings          Booking[] @relation("LearnerBookings")
+  cancelledBookings        Booking[] @relation("CancelledBy")
+  slots                    Slot[]
+  coachPayments            Payment[] @relation("CoachPayments")
+  learnerPayments          Payment[] @relation("LearnerPayments")
+  coachReviews             Review[]  @relation("CoachReviews")
+  learnerReviews           Review[]  @relation("LearnerReviews")
+
+  @@index([role])
+  @@index([isVerified])
+}
+
+model Slot {
+  id                  String     @id @default(cuid())
+  coachId             String
+  coach               User       @relation(fields: [coachId], references: [id])
+  title               String
+  description         String
+  price               Float
+  duration            Int
+  maxParticipants     Int
+  category            String
+  startTime           DateTime
+  endTime             DateTime
+  isRecurring         Boolean    @default(false)
+  recurrenceRule      String?
+  status              SlotStatus @default(available)
+  currentParticipants Int        @default(0)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  bookings            Booking[]
+
+  @@index([coachId])
+  @@index([startTime, endTime])
+  @@index([status])
+  @@index([category])
+}
+
+model Booking {
+  id                  String        @id @default(cuid())
+  slotId              String
+  slot                Slot          @relation(fields: [slotId], references: [id])
+  learnerId           String
+  learner             User          @relation("LearnerBookings", fields: [learnerId], references: [id])
+  coachId             String
+  coach               User          @relation("CoachBookings", fields: [coachId], references: [id])
+  
+  // Payment
+  amount              Float
+  platformFee         Float
+  stripeFee           Float
+  coachPayout         Float
+  paymentIntentId     String
+  paymentStatus       PaymentStatus @default(pending)
+  escrowStatus        EscrowStatus  @default(authorized)
+  
+  // Session
+  sessionStatus       SessionStatus @default(scheduled)
+  videoRoomUrl        String
+  videoRoomId         String
+  
+  // Session Confirmation
+  coachConfirmed      Boolean?
+  clientConfirmed     Boolean?
+  coachConfirmedAt    DateTime?
+  clientConfirmedAt   DateTime?
+  
+  // Actual timing
+  actualStartTime     DateTime?
+  actualEndTime       DateTime?
+  actualDuration      Int?
+  
+  // Cancellation
+  cancellationReason  String?
+  cancelledById       String?
+  cancelledBy         User?         @relation("CancelledBy", fields: [cancelledById], references: [id])
+  cancelledAt         DateTime?
+  refundAmount        Float?
+  
+  // Review
+  isReviewed          Boolean       @default(false)
+  reviewId            String?       @unique
+  review              Review?       @relation("BookingReview", fields: [reviewId], references: [id])
+  rating              Int?
+  feedback            String?
+  
+  scheduledFor        DateTime
+  completedAt         DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  payments            Payment[]
+  sessions            Session[]
+
+  @@index([learnerId])
+  @@index([coachId])
+  @@index([slotId])
+  @@index([scheduledFor])
+  @@index([sessionStatus])
+  @@index([paymentStatus])
+}
+
+model Payment {
+  id                    String              @id @default(cuid())
+  bookingId             String
+  booking               Booking             @relation(fields: [bookingId], references: [id])
+  coachId               String
+  coach                 User                @relation("CoachPayments", fields: [coachId], references: [id])
+  learnerId             String
+  learner               User                @relation("LearnerPayments", fields: [learnerId], references: [id])
+  
+  amount                Float
+  platformFee           Float
+  stripeFee             Float
+  coachPayout           Float
+  
+  stripePaymentIntentId String
+  stripeTransferId      String?
+  
+  status                PaymentRecordStatus @default(pending)
+  
+  paidAt                DateTime
+  transferredAt         DateTime?
+  refundedAt            DateTime?
+  
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@index([bookingId])
+  @@index([coachId])
+  @@index([learnerId])
+  @@index([status])
+  @@index([paidAt])
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  bookingId   String   @unique
+  booking     Booking? @relation("BookingReview")
+  coachId     String
+  coach       User     @relation("CoachReviews", fields: [coachId], references: [id])
+  learnerId   String
+  learner     User     @relation("LearnerReviews", fields: [learnerId], references: [id])
+  
+  rating      Int
+  comment     String
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([coachId])
+  @@index([learnerId])
+  @@index([rating])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  bookingId    String
+  booking      Booking  @relation(fields: [bookingId], references: [id])
+  videoRoomId  String
+  
+  startedAt    DateTime
+  endedAt      DateTime?
+  duration     Int?
+  
+  participants Json // ISessionParticipant[]
+  
+  recording    Json // { isRecorded: boolean, recordingUrl?: string }
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([videoRoomId])
+  @@index([startedAt])
+}

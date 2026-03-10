@@ -1,5 +1,5 @@
 export interface Payment {
-  _id: string;
+  id: string;
   bookingId: string;
   coachId: string;
   learnerId: string;

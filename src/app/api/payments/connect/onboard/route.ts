@@ -1,11 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import User from '@/models/User';
+import prisma from '@/lib/db';
 import { createStripeConnectAccount, createAccountLink } from '@/lib/stripe';
 import { APP_CONFIG } from '@/config/app';
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const session = await auth();
     if (!session) {
@@ -16,9 +15,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    await connectDB();
-    
-    const user = await User.findById(session.user.id);
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id }
+    });
+
     if (!user) {
       return NextResponse.json({ message: 'User not found' }, { status: 404 });
     }
@@ -31,9 +31,13 @@ export async function POST(request: NextRequest) {
     // Create Stripe Connect account
     const account = await createStripeConnectAccount(user.email);
 
-    // Update user with Stripe account ID
-    user.stripeAccountId = account.id;
-    await user.save();
+    // Update user with Stripe account ID using Prisma
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        stripeAccountId: account.id
+      }
+    });
 
     // Create account link for onboarding
     const accountLink = await createAccountLink(

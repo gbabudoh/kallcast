@@ -85,8 +85,10 @@ export async function createCheckoutSession({
       stripeFee: fees.stripeFeeDollars.toString(),
       coachPayout: fees.coachPayoutDollars.toString(),
     },
-    // REMOVED application_fee_amount and transfer_data
-    // We are using 'Separate Charges and Transfers' (Step 2 and 4 in user request)
+    payment_intent_data: {
+      transfer_group: bookingId,
+    },
+    // We are using 'Separate Charges and Transfers'
     // The funds will stay in our platform account until we trigger createTransfer manually.
   });
 

@@ -3,8 +3,7 @@ import type { NextAuthConfig, Session, User } from 'next-auth';
 import { type JWT } from 'next-auth/jwt';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
-import connectDB from './db';
-import UserModel from '@/models/User';
+import prisma from './db';
 import { AuthUser } from '@/types/user';
 
 export const authConfig: NextAuthConfig = {
@@ -21,9 +20,9 @@ export const authConfig: NextAuthConfig = {
         }
 
         try {
-          await connectDB();
-          
-          const user = await UserModel.findOne({ email: credentials.email });
+          const user = await prisma.user.findUnique({ 
+            where: { email: credentials.email as string } 
+          });
           if (!user) {
             return null;
           }
@@ -38,7 +37,7 @@ export const authConfig: NextAuthConfig = {
           }
 
           return {
-            id: user._id.toString(),
+            id: user.id,
             email: user.email,
             firstName: user.firstName,
             lastName: user.lastName,

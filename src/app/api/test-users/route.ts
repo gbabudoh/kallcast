@@ -1,24 +1,32 @@
 import { NextResponse } from 'next/server';
-import connectDB from '@/lib/db';
-import User from '@/models/User';
+import prisma from '@/lib/db';
 
 export async function GET() {
   try {
-    await connectDB();
-    
-    const users = await User.find({}).select('-password');
-    const userCount = await User.countDocuments();
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        createdAt: true
+      },
+      take: 5
+    });
+    const userCount = await prisma.user.count();
     
     return NextResponse.json({ 
       status: 'success', 
       userCount,
-      users: users.slice(0, 5), // Show first 5 users
+      users,
       message: `Found ${userCount} users in database`
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({ 
       status: 'error', 
-      message: error.message,
+      message: errorMessage,
       userCount: 0
     }, { status: 500 });
   }

@@ -1,5 +1,5 @@
 export interface Booking {
-  _id: string;
+  id: string;
   slotId: string;
   learnerId: string;
   coachId: string;
@@ -41,7 +41,7 @@ export interface CreateBookingRequest {
 
 export interface BookingWithDetails extends Booking {
   slot: {
-    _id: string;
+    id: string;
     title: string;
     description: string;
     duration: number;
@@ -49,14 +49,14 @@ export interface BookingWithDetails extends Booking {
     category: string;
   };
   coach: {
-    _id: string;
+    id: string;
     firstName: string;
     lastName: string;
     profileImage?: string;
     hourlyRate: number;
   };
   learner: {
-    _id: string;
+    id: string;
     firstName: string;
     lastName: string;
     email?: string;

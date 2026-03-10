@@ -1,46 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import Slot from '@/models/Slot';
+import prisma from '@/lib/db';
+import { Prisma, SlotStatus } from '@/generated/client';
 import { createSlotSchema } from '@/validations/coach';
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
-    
     const { searchParams } = new URL(request.url);
     const coachId = searchParams.get('coachId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const category = searchParams.get('category');
+    const search = searchParams.get('search');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '20');
 
-    // Build query
-    const query: any = {
-      status: 'available',
-      startTime: { $gte: new Date() },
+    // Build query for Prisma
+    const where: Prisma.SlotWhereInput = {
+      status: SlotStatus.available,
+      startTime: { gte: startDate ? new Date(startDate) : new Date() },
+      endTime: endDate ? { lte: new Date(endDate) } : undefined,
+      coachId: coachId || undefined,
+      category: category ? { contains: category, mode: 'insensitive' } : undefined,
+      OR: search ? [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { coach: { firstName: { contains: search, mode: 'insensitive' } } },
+        { coach: { lastName: { contains: search, mode: 'insensitive' } } },
+      ] : undefined,
     };
 
-    if (coachId) {
-      query.coachId = coachId;
-    }
+    const skip = (page - 1) * limit;
+    const slots = await prisma.slot.findMany({
+      where,
+      include: {
+        coach: {
+          select: {
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            hourlyRate: true,
+            averageRating: true,
+            isVerified: true,
+            id: true
+          }
+        }
+      },
+      orderBy: {
+        startTime: 'asc'
+      },
+      skip,
+      take: limit,
+    });
 
-    if (startDate) {
-      query.startTime.$gte = new Date(startDate);
-    }
+    const total = await prisma.slot.count({ where });
 
-    if (endDate) {
-      query.endTime = { ...query.endTime, $lte: new Date(endDate) };
-    }
-
-    if (category) {
-      query.category = category;
-    }
-
-    const slots = await Slot.find(query)
-      .populate('coachId', 'firstName lastName profileImage hourlyRate averageRating')
-      .sort({ startTime: 1 });
-
-    return NextResponse.json({ slots });
+    return NextResponse.json({ 
+      slots,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error('Get slots error:', error);
     return NextResponse.json(
@@ -61,11 +84,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
-    await connectDB();
+    
     
     const body = await request.json();
-    const validationResult = createSlotSchema.safeParse(body);
+    
+    // Support batch creation
+    if (Array.isArray(body)) {
+      const slotsData = body.map((slotData) => {
+        const validation = createSlotSchema.safeParse(slotData);
+        if (!validation.success) {
+          throw new Error(`Validation failed for one or more slots: ${validation.error.message}`);
+        }
+        return {
+          ...validation.data,
+          coachId: session.user.id,
+          status: (validation.data.status as SlotStatus) || SlotStatus.available,
+        };
+      });
 
+      const slots = await prisma.slot.createMany({
+        data: slotsData,
+      });
+
+      return NextResponse.json(
+        { message: `${slots.count} slots created successfully`, count: slots.count },
+        { status: 201 }
+      );
+    }
+
+    const validationResult = createSlotSchema.safeParse(body);
     if (!validationResult.success) {
       return NextResponse.json(
         { 
@@ -77,13 +124,22 @@ export async function POST(request: NextRequest) {
     }
 
     const data = validationResult.data;
-    const slot = new Slot({
-      ...data,
-      coachId: session.user.id,
+    const slot = await prisma.slot.create({
+      data: {
+        ...data,
+        coachId: session.user.id,
+        status: (data.status as SlotStatus) || SlotStatus.available,
+      },
+      include: {
+        coach: {
+          select: {
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+          }
+        }
+      }
     });
-
-    await slot.save();
-    await slot.populate('coachId', 'firstName lastName profileImage');
 
     return NextResponse.json(
       { message: 'Slot created successfully', slot },

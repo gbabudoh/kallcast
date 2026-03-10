@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import connectDB from '@/lib/db';
-import Booking from '@/models/Booking';
-import User from '@/models/User';
+import { SessionStatus, PaymentStatus, EscrowStatus, Prisma } from '@/generated/client';
+import prisma from '@/lib/db';
 import { stripe } from '@/lib/stripe';
 
 export async function POST(request: NextRequest) {
@@ -12,97 +11,115 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    await connectDB();
-    
     const { bookingId, confirmed, rating, feedback } = await request.json();
 
     if (!bookingId) {
       return NextResponse.json({ message: 'Booking ID is required' }, { status: 400 });
     }
 
-    const booking = await Booking.findById(bookingId)
-      .populate('coachId')
-      .populate('learnerId');
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        coach: true,
+        learner: true,
+      }
+    });
 
     if (!booking) {
       return NextResponse.json({ message: 'Booking not found' }, { status: 404 });
     }
 
     const userId = session.user.id;
-    const isCoach = booking.coachId._id.toString() === userId;
-    const isClient = booking.learnerId._id.toString() === userId;
+    const isCoach = booking.coachId === userId;
+    const isClient = booking.learnerId === userId;
 
     if (!isCoach && !isClient) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
     }
 
+    const data: Prisma.BookingUpdateInput = {};
+    const now = new Date();
+
     // Update session status to pending confirmation if not already
-    if (booking.sessionStatus === 'in-progress') {
-      booking.sessionStatus = 'pending_confirmation';
-      booking.actualEndTime = new Date();
+    if (booking.sessionStatus === SessionStatus.in_progress) {
+      data.sessionStatus = SessionStatus.pending_confirmation;
+      data.actualEndTime = now;
       if (booking.actualStartTime) {
-        booking.actualDuration = Math.round(
-          (booking.actualEndTime.getTime() - booking.actualStartTime.getTime()) / 60000
+        data.actualDuration = Math.round(
+          (now.getTime() - booking.actualStartTime.getTime()) / 60000
         );
       }
     }
 
     // Record confirmation
-    const now = new Date();
     if (isCoach) {
-      booking.coachConfirmed = confirmed;
-      booking.coachConfirmedAt = now;
+      data.coachConfirmed = confirmed;
+      data.coachConfirmedAt = now;
     } else {
-      booking.clientConfirmed = confirmed;
-      booking.clientConfirmedAt = now;
+      data.clientConfirmed = confirmed;
+      data.clientConfirmedAt = now;
       // Save rating and feedback from client
-      if (rating) booking.rating = rating;
-      if (feedback) booking.feedback = feedback;
+      if (rating) data.rating = rating;
+      if (feedback) data.feedback = feedback;
     }
 
-    await booking.save();
+    // Update booking initially
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
+      data
+    });
 
     // Check if both parties have confirmed
-    const bothConfirmed = booking.coachConfirmed === true && booking.clientConfirmed === true;
-    const anyDisputed = booking.coachConfirmed === false || booking.clientConfirmed === false;
+    const bothConfirmed = updatedBooking.coachConfirmed === true && updatedBooking.clientConfirmed === true;
+    const anyDisputed = updatedBooking.coachConfirmed === false || updatedBooking.clientConfirmed === false;
 
     if (bothConfirmed) {
       // Release payment to coach
       try {
         // Capture the payment if using manual capture
-        if (booking.paymentStatus === 'authorized') {
-          await stripe.paymentIntents.capture(booking.paymentIntentId);
-          booking.paymentStatus = 'captured';
+        if (updatedBooking.paymentStatus === PaymentStatus.authorized) {
+          await stripe.paymentIntents.capture(updatedBooking.paymentIntentId);
+          await prisma.booking.update({
+            where: { id: bookingId },
+            data: { paymentStatus: PaymentStatus.captured }
+          });
         }
 
         // Transfer to coach via Stripe Connect
-        const coach = await User.findById(booking.coachId._id);
+        const coach = booking.coach;
         if (coach?.stripeAccountId) {
-          const transferAmount = booking.coachPayout;
+          const transferAmount = updatedBooking.coachPayout;
           
           await stripe.transfers.create({
             amount: Math.round(transferAmount * 100),
             currency: 'usd',
             destination: coach.stripeAccountId,
-            transfer_group: `booking_${booking._id}`,
+            transfer_group: `booking_${updatedBooking.id}`,
             metadata: {
-              bookingId: booking._id.toString(),
-              coachId: coach._id.toString(),
+              bookingId: updatedBooking.id,
+              coachId: coach.id,
             },
           });
 
-          booking.escrowStatus = 'released';
-          booking.paymentStatus = 'paid';
-          
-          // Update coach earnings
-          coach.totalEarnings = (coach.totalEarnings || 0) + transferAmount;
-          coach.totalSessions = (coach.totalSessions || 0) + 1;
-          await coach.save();
+          await prisma.$transaction([
+            prisma.booking.update({
+              where: { id: bookingId },
+              data: {
+                escrowStatus: EscrowStatus.released,
+                paymentStatus: PaymentStatus.paid,
+                sessionStatus: SessionStatus.completed,
+                completedAt: now,
+              }
+            }),
+            prisma.user.update({
+              where: { id: coach.id },
+              data: {
+                totalEarnings: { increment: transferAmount },
+                totalSessions: { increment: 1 },
+              }
+            })
+          ]);
         }
-
-        booking.sessionStatus = 'completed';
-        booking.completedAt = new Date();
-        await booking.save();
 
         return NextResponse.json({
           message: 'Session completed and payment released',
@@ -119,9 +136,13 @@ export async function POST(request: NextRequest) {
       }
     } else if (anyDisputed) {
       // Mark as disputed for admin review
-      booking.sessionStatus = 'disputed';
-      booking.escrowStatus = 'disputed';
-      await booking.save();
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: {
+          sessionStatus: SessionStatus.disputed,
+          escrowStatus: EscrowStatus.disputed,
+        }
+      });
 
       return NextResponse.json({
         message: 'Issue reported. Admin will review.',
@@ -133,8 +154,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       message: 'Confirmation recorded. Waiting for other party.',
       status: 'pending_confirmation',
-      coachConfirmed: booking.coachConfirmed,
-      clientConfirmed: booking.clientConfirmed,
+      coachConfirmed: updatedBooking.coachConfirmed,
+      clientConfirmed: updatedBooking.clientConfirmed,
     });
   } catch (error) {
     console.error('Session confirm error:', error);

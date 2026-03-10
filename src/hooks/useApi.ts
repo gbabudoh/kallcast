@@ -67,9 +67,17 @@ export function useApi<T = unknown>(
 }
 
 // Specific API hooks
-export function useCoaches() {
+export function useCoaches(options: { search?: string; category?: string; page?: number; limit?: number } = {}) {
+  const { search, category, page, limit } = options;
   return useApi(async () => {
-    const response = await fetch('/api/coaches', {
+    const searchParams = new URLSearchParams();
+    if (search) searchParams.append('search', search);
+    if (category && category !== 'All') searchParams.append('category', category);
+    if (page) searchParams.append('page', page.toString());
+    if (limit) searchParams.append('limit', limit.toString());
+
+    const url = `/api/coaches${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+    const response = await fetch(url, {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
@@ -93,9 +101,17 @@ export function useCoach(coachId: string) {
   }, { immediate: true, onError: () => {} });
 }
 
-export function useSlots(coachId?: string) {
+export function useSlots(options: { coachId?: string; search?: string; category?: string; page?: number; limit?: number } = {}) {
+  const { coachId, search, category, page, limit } = options;
   return useApi(async () => {
-    const url = coachId ? `/api/slots?coachId=${coachId}` : '/api/slots';
+    const searchParams = new URLSearchParams();
+    if (coachId) searchParams.append('coachId', coachId);
+    if (search) searchParams.append('search', search);
+    if (category && category !== 'All') searchParams.append('category', category);
+    if (page) searchParams.append('page', page.toString());
+    if (limit) searchParams.append('limit', limit.toString());
+
+    const url = `/api/slots${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
     const response = await fetch(url, {
       credentials: 'include',
       headers: {

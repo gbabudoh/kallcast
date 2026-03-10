@@ -1,5 +1,5 @@
 export interface Review {
-  _id: string;
+  id: string;
   bookingId: string;
   coachId: string;
   learnerId: string;
